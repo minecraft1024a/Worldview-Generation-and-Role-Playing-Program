@@ -16,11 +16,11 @@
 ```bash
 pip install -r requirements.txt
 ```
-3. 创建.env文件并填写API信息：
+3. 填写API信息：
 ```env
-OPENAI_API_KEY=your_api_key
-OPENAI_API_BASE=your_api_base
-OPENAI_MODEL_NAME=your_MODEL_NAME
+API_KEY=your_api_key
+API_BASE=your_api_base
+MODEL_NAME=your_MODEL_NAME
 ```
 
 ## 使用说明

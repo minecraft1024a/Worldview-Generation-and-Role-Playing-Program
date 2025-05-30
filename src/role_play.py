@@ -48,16 +48,17 @@ def start_role_play(world_description):
             print("屏幕已清空")
             continue
         elif user_input == '重新生成':
-            if len(messages) >= 3:
-                messages.pop()
-                messages.pop()
-                response = client.chat.completions.create(
-                    model=os.getenv("MODEL_NAME"),
-                    messages=messages,
-                    temperature=0.7
-                )
-                messages.append({"role": "assistant", "content": response.choices[0].message.content})
-                print(response.choices[0].message.content)
+            print("\n正在重新生成场景，请稍候...\n")
+            # 只保留最初的两条设定消息
+            messages = messages[:2]
+            response = client.chat.completions.create(
+                model=os.getenv("MODEL_NAME"),
+                messages=messages,
+                temperature=0.7
+            )
+            messages.append({"role": "assistant", "content": response.choices[0].message.content})
+            print("=== 新的场景已生成 ===")
+            print(response.choices[0].message.content)
             continue
         # 添加用户输入到对话历史
         messages.append({"role": "user", "content": user_input})
