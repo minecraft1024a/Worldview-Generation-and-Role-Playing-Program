@@ -10,16 +10,12 @@ client = openai.OpenAI(
 )
 
 def start_role_play(world_description):
-    client = openai.OpenAI(
-        base_url=os.getenv("API_URL"),
-        api_key=os.getenv("API_KEY")
-    )
     
     role = input("请输入你要扮演的角色（例如：冒险者、法师、商人）：")
     
     messages = [
-        {"role": "system", "content": f"你是一个角色扮演游戏大师，根据以下世界观进行角色扮演：\n\n{world_description}"},
-        {"role": "user", "content": f"""我扮演{role}，请开始角色扮演游戏,角色扮演的时候按照以下对话格式:
+        {"role": "system", "content": f"""你是一个角色扮演游戏大师，角色扮演的时候按照以下对话格式:
+        用户身份：
         时间:
         地点:
         情景:
@@ -28,7 +24,9 @@ def start_role_play(world_description):
         ================
         用户物品栏:
         ================
-        用户接下来的选择(使用数字标记):"""}
+        用户接下来的选择(使用数字标记):根据以下世界观进行角色扮演：
+        {world_description}"""},        
+        {"role": "user", "content": f"""我扮演{role}，请开始角色扮演游戏,}}"""}
 
     ]
     # 初始化对话历史
@@ -42,9 +40,25 @@ def start_role_play(world_description):
     print(response.choices[0].message.content)
     
     while True:
-        user_input = input("你的行动（输入'退出'结束游戏）：")
+        user_input = input("你的行动（输入'退出'结束游戏，重新生成，清屏）：")
         if user_input == '退出':
             break
+        elif user_input == '清屏':
+            os.system('cls')
+            print("屏幕已清空")
+            continue
+        elif user_input == '重新生成':
+            if len(messages) >= 3:
+                messages.pop()
+                messages.pop()
+                response = client.chat.completions.create(
+                    model=os.getenv("MODEL_NAME"),
+                    messages=messages,
+                    temperature=0.7
+                )
+                messages.append({"role": "assistant", "content": response.choices[0].message.content})
+                print(response.choices[0].message.content)
+            continue
         # 添加用户输入到对话历史
         messages.append({"role": "user", "content": user_input})
         response = client.chat.completions.create(
