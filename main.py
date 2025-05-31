@@ -32,9 +32,9 @@ def main_menu():
                 elif sub_choice == "3":
                     print("\n进入角色扮演模式...")
                     role_play.start_role_play(world_desc)
-                    break
                 else:
                     print("无效选择，请重新输入")
+                    break
         elif choice == "2":
             print("再见！")
             break

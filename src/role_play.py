@@ -1,8 +1,10 @@
 import openai
 from dotenv import load_dotenv
 import os
-from src import error_handler
+import threading
+from src import error_handler, summary
 
+# 加载环境变量
 load_dotenv()
 client = openai.OpenAI(
     base_url=os.getenv("API_URL"),
@@ -25,21 +27,7 @@ def start_role_play(world_description):
         "用户物品栏:\n"
         "===============\n"
         "用户接下来的选择(使用数字标记):\n"
-        "【示例】\n"
-        "用户身份：冒险者\n"
-        "时间: 清晨\n"
-        "地点: 森林入口\n"
-        "情景: 你站在幽深的森林入口，阳光透过树叶洒下斑驳光影。\n"
-        "===============\n"
-        "用户状态: 精力充沛，装备齐全\n"
-        "===============\n"
-        "用户物品栏: 长剑x1，面包x2，水壶x1\n"
-        "===============\n"
-        "用户接下来的选择(使用数字标记):\n"
-        "1. 进入森林\n"
-        "2. 检查装备\n"
-        "3. 休息片刻\n"
-        "请严格按照上述格式输出，并根据玩家的行动推进剧情。根据以下世界观进行角色扮演：\n"
+        "请根据以下世界观进行角色扮演：\n"
         f"{world_description}"
     )
 
@@ -51,6 +39,9 @@ def start_role_play(world_description):
         ]
 
     messages = get_init_messages()
+
+    # 标志变量，用于标记摘要是否生成完成
+    summary_generated = False
 
     # 首次AI回复
     try:
@@ -66,10 +57,27 @@ def start_role_play(world_description):
         error_handler.handle_llm_error(e)
         return
 
+    turn_count = 0
+    summary_interval = 1  # 每5轮生成一次摘要
+
+    def generate_summary_in_background(messages, world_description, turn_count, summary_interval):
+        """
+        在后台线程中生成摘要并保存到 JSON 文件
+        """
+        nonlocal summary_generated
+        try:
+            summary_text = summary.summarize_and_save(messages, world_description, turn_count, summary_interval)
+            if summary_text:
+                print(f"\n=== 对话摘要已生成完毕 ===\n{summary_text}\n")
+                summary_generated = True  # 标记摘要生成完成
+        except Exception as e:
+            print("生成摘要时发生错误：", e)
+
     while True:
         user_input = input("你的行动（输入'退出'结束游戏，重新开始，清屏，重新生成本回合）：")
         if user_input == '退出':
-            break
+            print("游戏已退出，再见！")
+            os._exit()
         elif user_input == '清屏':
             os.system('cls')
             print("屏幕已清空")
@@ -92,13 +100,8 @@ def start_role_play(world_description):
             continue
         elif user_input == '重新生成本回合':
             print("\n正在重新生成本回合内容，请稍候...\n")
-            # 找到上一个用户输入（即本回合的行动），以及之前的所有历史
-            # 假设每一回合结构为：...assistant, user(行动), assistant
-            # 只移除最后一个assistant回复，保留用户行动
             if len(messages) >= 2 and messages[-1]["role"] == "assistant" and messages[-2]["role"] == "user":
-                last_user_action = messages[-2]
-                # 移除最后一个assistant回复
-                messages = messages[:-1]
+                messages = messages[:-1]  # 移除最后一个assistant回复
                 try:
                     response = client.chat.completions.create(
                         model=os.getenv("MODEL_NAME"),
@@ -125,7 +128,24 @@ def start_role_play(world_description):
                 temperature=0.7
             )
             assistant_reply = response.choices[0].message.content
+
+            # 如果摘要生成完成，在输出末尾附加提示
+            if summary_generated:
+                assistant_reply += "\n\n（摘要生成完成）"
+                summary_generated = False  # 重置标志
+
             messages.append({"role": "assistant", "content": assistant_reply})
             print(assistant_reply)
+
+            # 每5轮生成一次摘要，并在后台线程中执行
+            turn_count += 1
+            if turn_count % summary_interval == 0:
+                print("\n正在后台生成对话摘要，请继续游戏...\n")
+                summary_thread = threading.Thread(
+                    target=generate_summary_in_background,
+                    args=(messages, world_description, turn_count, summary_interval)
+                )
+                summary_thread.start()
+
         except Exception as e:
             error_handler.handle_llm_error(e)
