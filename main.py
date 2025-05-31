@@ -10,7 +10,6 @@ def main_menu():
         print("1. 开始游戏")
         print("2. 退出")
         choice = input("请选择操作（输入数字）：")
-        
         if choice == "1":
             background = input("请输入你想要的世界观背景（如：地理、历史、文化、魔法体系等，留空为默认）：")
             if not background.strip():
