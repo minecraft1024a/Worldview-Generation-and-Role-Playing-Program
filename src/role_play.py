@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 import os
 import threading
 from src import error_handler, summary
+from src.error_handler import error_handler
+
 
 # 加载环境变量
 load_dotenv()
@@ -11,8 +13,9 @@ client = openai.OpenAI(
     api_key=os.getenv("API_KEY")
 )
 
-def start_role_play(world_description):
-    role = input("请输入你要扮演的角色（例如：冒险者、法师、商人）：")
+def start_role_play(world_description,summary_text):
+    if not summary_text:
+        role = input("请输入你要扮演的角色（例如：冒险者、法师、商人）：")
 
     # 初始设定
     system_prompt = (
@@ -28,8 +31,10 @@ def start_role_play(world_description):
         "===============\n"
         "用户接下来的选择(使用数字标记):\n"
         "请根据以下世界观进行角色扮演：\n"
-        f"{world_description}"
+        f"{world_description}\n"
     )
+    if summary_text:
+        system_prompt += f"\n剧情摘要：{summary_text}\n"
 
     # 初始化对话历史
     def get_init_messages():
@@ -52,13 +57,14 @@ def start_role_play(world_description):
         )
         assistant_reply = response.choices[0].message.content
         messages.append({"role": "assistant", "content": assistant_reply})
+        os.system('cls')  # 清屏
         print(assistant_reply)
     except Exception as e:
         error_handler.handle_llm_error(e)
         return
 
     turn_count = 0
-    summary_interval = 1  # 每5轮生成一次摘要
+    summary_interval = 5  # 每5轮生成一次摘要
 
     def generate_summary_in_background(messages, world_description, turn_count, summary_interval):
         """
@@ -68,7 +74,6 @@ def start_role_play(world_description):
         try:
             summary_text = summary.summarize_and_save(messages, world_description, turn_count, summary_interval)
             if summary_text:
-                print(f"\n=== 对话摘要已生成完毕 ===\n{summary_text}\n")
                 summary_generated = True  # 标记摘要生成完成
         except Exception as e:
             print("生成摘要时发生错误：", e)
@@ -77,7 +82,7 @@ def start_role_play(world_description):
         user_input = input("你的行动（输入'退出'结束游戏，重新开始，清屏，重新生成本回合）：")
         if user_input == '退出':
             print("游戏已退出，再见！")
-            os._exit()
+            break
         elif user_input == '清屏':
             os.system('cls')
             print("屏幕已清空")
@@ -93,6 +98,7 @@ def start_role_play(world_description):
                 )
                 assistant_reply = response.choices[0].message.content
                 messages.append({"role": "assistant", "content": assistant_reply})
+                os.system('cls')  # 清屏
                 print("=== 新的场景已生成 ===")
                 print(assistant_reply)
             except Exception as e:
@@ -135,6 +141,7 @@ def start_role_play(world_description):
                 summary_generated = False  # 重置标志
 
             messages.append({"role": "assistant", "content": assistant_reply})
+            os.system('cls')  # 清屏
             print(assistant_reply)
 
             # 每5轮生成一次摘要，并在后台线程中执行

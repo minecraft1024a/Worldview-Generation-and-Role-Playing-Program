@@ -2,7 +2,8 @@ import openai
 from dotenv import load_dotenv
 import os
 import json
-from src import error_handler
+from src.error_handler import error_handler
+
 
 # 加载环境变量
 load_dotenv()
@@ -33,7 +34,6 @@ def summarize_and_save(messages, world_description, turn_count, summary_interval
             # 保存总结和世界观到 JSON 文件
             save_summary_to_json(summary_text, world_description, world_elements)
 
-            print(f"\n=== 对话摘要 ===\n{summary_text}\n")
             return summary_text
 
     except Exception as e:
@@ -65,4 +65,3 @@ def save_summary_to_json(summary_text, world_description, world_elements):
     os.makedirs("data", exist_ok=True)
     with open("data/summary.json", "w", encoding="utf-8") as f:
         json.dump(summary_data, f, ensure_ascii=False, indent=2)
-    print("总结内容已保存到 data/summary.json")

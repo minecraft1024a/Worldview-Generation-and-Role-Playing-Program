@@ -1,16 +1,35 @@
 import os
 from dotenv import load_dotenv
-from src import world_generation, role_play
+from src import world_generation, role_play, error_handler
+import json
+from src.error_handler import error_handler
+
 
 load_dotenv()
 
 def main_menu():
     while True:
         print("\n=== 主菜单 ===")
-        print("1. 开始游戏")
-        print("2. 退出")
+        print("1. 读取存档开始游戏")
+        print("2. 开始新游戏")
+        print("3. 退出")
         choice = input("请选择操作（输入数字）：")
         if choice == "1":
+            # 读取summary.json并进入角色扮演
+            summary_path = os.path.join("data", "summary.json")
+            if os.path.exists(summary_path):
+                try:
+                    with open(summary_path, "r", encoding="utf-8") as f:
+                        summary_data = json.load(f)
+                    print("\n已加载世界观和剧情摘要")
+                    role_play.start_role_play(summary_data["world_description"],summary_data["latest_summary"])
+                    return  # 结束主菜单
+                except Exception as e:
+                    error_handler.handle_llm_error(e)
+                    print("存档加载失败，请尝试新游戏")
+            else:
+                print("未找到存档文件 summary.json，请先进行一次游戏。")
+        elif choice == "2":
             background = input("请输入你想要的世界观背景（如：地理、历史、文化、魔法体系等，留空为默认）：")
             if not background.strip():
                 background = "地理、历史、文化、魔法体系"
@@ -18,24 +37,25 @@ def main_menu():
                 print("\n正在生成世界观...")
                 world_desc = world_generation.generate_world(background)
                 print(f"\n世界观描述：\n{world_desc}\n")
-                print("1. 重新生成")
-                print("2. 重新输入背景并生成")
-                print("3. 继续进入角色扮演")
-                sub_choice = input("请选择操作（输入数字）：")
-                if sub_choice == "1":
-                    continue
-                elif sub_choice == "2":
-                    background = input("请输入新的世界观背景：")
-                    if not background.strip():
-                        background = "地理、历史、文化、魔法体系"
-                    continue
-                elif sub_choice == "3":
-                    print("\n进入角色扮演模式...")
-                    role_play.start_role_play(world_desc)
-                else:
-                    print("无效选择，请重新输入")
-                    break
-        elif choice == "2":
+                while True:
+                    print("1. 重新生成")
+                    print("2. 重新输入背景并生成")
+                    print("3. 继续进入角色扮演")
+                    sub_choice = input("请选择操作（输入数字）：")
+                    if sub_choice == "1":
+                        break  # 跳出当前循环，重新生成
+                    elif sub_choice == "2":
+                        background = input("请输入新的世界观背景：")
+                        if not background.strip():
+                            background = "地理、历史、文化、魔法体系"
+                        break  # 跳出当前循环，重新生成
+                    elif sub_choice == "3":
+                        print("\n进入角色扮演模式...")
+                        role_play.start_role_play(world_desc,None)
+                        return  # 结束主菜单
+                    else:
+                        print("无效选择，请重新输入")
+        elif choice == "3":
             print("再见！")
             break
         else:
