@@ -1,7 +1,7 @@
 import json
 from src import error_handler
 
-def load_summary(save_name=None):
+def load_summary():
     """
     加载指定存档名的世界观和剧情摘要，未指定则列出所有存档供选择。
     返回 (world_description, summary_text, save_name, last_conversation) 或 (None, None, None, None)
@@ -14,7 +14,7 @@ def load_summary(save_name=None):
     files = [f for f in os.listdir(data_dir) if f.endswith('.json')]
     if not files:
         print("未找到任何存档文件，需要先进行游戏存档")
-        return None, None, None,None
+        return None, None, None,None,None
     if not save_name:
         while True:
             print("可用存档：")
@@ -25,7 +25,7 @@ def load_summary(save_name=None):
                 choice = int(input("请输入要操作的存档编号："))
                 if choice == 0:
                     print("已取消")
-                    return None, None, None,None
+                    return None, None, None,None,None
                 if not (1 <= choice <= len(files)):
                     print("编号超出范围，请重新输入")
                     continue
