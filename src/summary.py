@@ -50,7 +50,6 @@ def summarize_and_save(messages, world_description, save_name=None, role=None):
         summary_text = response.choices[0].message.content
 
         # 提取世界观要素
-        world_elements = extract_world_elements(summary_text)
 
         # 自动生成或使用提供的存档名
         if not save_name:
@@ -58,7 +57,7 @@ def summarize_and_save(messages, world_description, save_name=None, role=None):
 
         # 保存总结和世界观到 JSON 文件，并保存最后一次对话和角色
         last_conversation = messages[-1] if messages else None
-        save_summary_to_json(summary_text, world_description, world_elements, save_name, last_conversation, role)
+        save_summary_to_json(summary_text, world_description, save_name, last_conversation, role)
 
         return summary_text, save_name
 
@@ -66,24 +65,13 @@ def summarize_and_save(messages, world_description, save_name=None, role=None):
         error_handler.handle_llm_error(e)
         return "", None
 
-def extract_world_elements(plot_summary):
-    """
-    从剧情总结中提取世界观要素
-    """
-    # 实现世界观要素提取逻辑
-    return {
-        "setting": "奇幻森林",
-        "key_elements": ["魔法", "冒险", "神秘生物"]
-    }
-
-def save_summary_to_json(summary_text, world_description, world_elements, save_name, last_conversation=None, role=None):
+def save_summary_to_json(summary_text, world_description, save_name, last_conversation=None, role=None):
     """
     将总结内容和世界观保存到独立 JSON 文件，并保存最后一次对话和角色
     """
     summary_data = {
         "latest_summary": summary_text,
         "world_description": world_description,
-        "world_elements": world_elements,
         "last_conversation": last_conversation,
         "role": role
     }
