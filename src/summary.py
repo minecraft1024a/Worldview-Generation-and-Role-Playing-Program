@@ -77,12 +77,12 @@ def extract_world_elements(plot_summary):
 
 def save_summary_to_json(summary_text, world_description, world_elements, save_name):
     """
-    将总结内容和世界观保存到独立 JSON 文件
+    将总结内容和世界观保存到独立 JSON 文件，并保存最后一次对话
     """
     summary_data = {
         "latest_summary": summary_text,
         "world_description": world_description,
-        "world_elements": world_elements
+        "world_elements": world_elements,
     }
 
     # 确保 data 目录存在

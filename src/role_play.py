@@ -64,7 +64,7 @@ def start_role_play(world_description, summary_text, save_name=None):
         return
 
     turn_count = 0
-    summary_interval = int(os.getenv("SUMMARY_INTERVAL", 5))  # 摘要生成的轮数间隔，可在.env中自定义 # 每5轮生成一次摘要
+    summary_interval = int(os.getenv("SUMMARY_INTERVAL", 5))  # 摘要生成的轮数间隔，可在.env中自定义
 
     def generate_summary_in_background(messages, world_description, save_name):
         """
@@ -142,7 +142,7 @@ def start_role_play(world_description, summary_text, save_name=None):
             os.system('cls')  # 清屏
             print(assistant_reply)
 
-            # 每5轮生成一次摘要，并在后台线程中执行
+            # 每x轮生成一次摘要，并在后台线程中执行
             turn_count += 1
             if turn_count % summary_interval == 0:
                 print("\n正在后台生成对话摘要，请继续游戏...\n")
