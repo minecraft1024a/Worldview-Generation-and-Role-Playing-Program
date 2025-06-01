@@ -12,7 +12,28 @@ client = openai.OpenAI(
     api_key=os.getenv("API_KEY")
 )
 
-def summarize_and_save(messages, world_description, turn_count, summary_interval=5):
+def get_save_name(summary_text):
+    """
+    使用 LLM 根据剧情摘要自动生成存档名
+    """
+    try:
+        response = client.chat.completions.create(
+            model=os.getenv("MODEL_NAME"),
+            messages=[
+                {"role": "system", "content": "请根据以下剧情摘要为本次存档起一个简洁有趣的中文标题（不超过10字）："},
+                {"role": "user", "content": summary_text}
+            ],
+            temperature=0.5
+        )
+        save_name = response.choices[0].message.content.strip().replace(" ", "")
+        for ch in r'\\/:*?\"<>|':
+            save_name = save_name.replace(ch, "")
+        return save_name or "未命名存档"
+    except Exception as e:
+        error_handler.handle_llm_error(e)
+        return "未命名存档"
+
+def summarize_and_save(messages, world_description, save_name=None):
     """
     在满足轮数后调用 LLM 对聊天内容进行总结，并保存到 JSON 文件
     """
@@ -31,15 +52,18 @@ def summarize_and_save(messages, world_description, turn_count, summary_interval
             # 提取世界观要素
             world_elements = extract_world_elements(summary_text)
 
-            # 保存总结和世界观到 JSON 文件
-            save_summary_to_json(summary_text, world_description, world_elements)
+            # 自动生成或使用提供的存档名
+            if not save_name:
+                save_name = get_save_name(summary_text)
 
-            return summary_text
+            # 保存总结和世界观到 JSON 文件
+            save_summary_to_json(summary_text, world_description, world_elements, save_name)
+
+            return summary_text, save_name
 
     except Exception as e:
             error_handler.handle_llm_error(e)
-            return ""
-    return None
+            return "", None
 
 def extract_world_elements(plot_summary):
     """
@@ -51,7 +75,7 @@ def extract_world_elements(plot_summary):
         "key_elements": ["魔法", "冒险", "神秘生物"]
     }
 
-def save_summary_to_json(summary_text, world_description, world_elements):
+def save_summary_to_json(summary_text, world_description, world_elements, save_name):
     """
     将总结内容和世界观保存到独立 JSON 文件
     """
@@ -63,5 +87,6 @@ def save_summary_to_json(summary_text, world_description, world_elements):
 
     # 确保 data 目录存在
     os.makedirs("data", exist_ok=True)
-    with open("data/summary.json", "w", encoding="utf-8") as f:
+    file_path = f"data/{save_name}.json"
+    with open(file_path, "w", encoding="utf-8") as f:
         json.dump(summary_data, f, ensure_ascii=False, indent=2)

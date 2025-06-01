@@ -13,7 +13,7 @@ client = openai.OpenAI(
     api_key=os.getenv("API_KEY")
 )
 
-def start_role_play(world_description,summary_text):
+def start_role_play(world_description, summary_text, save_name=None):
     if not summary_text:
         role = input("请输入你要扮演的角色（例如：冒险者、法师、商人）：")
 
@@ -38,14 +38,14 @@ def start_role_play(world_description,summary_text):
 
     # 初始化对话历史
     def get_init_messages():
-        return [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"我扮演{role}，请开始角色扮演游戏。"}
+        messages = [
+            {"role": "system", "content": system_prompt}
         ]
+        if not summary_text:
+            ({"role": "user", "content": f"我扮演{role}，请开始角色扮演游戏。"})
+        return messages
 
     messages = get_init_messages()
-
-    # 标志变量，用于标记摘要是否生成完成
     summary_generated = False
 
     # 首次AI回复
@@ -64,17 +64,19 @@ def start_role_play(world_description,summary_text):
         return
 
     turn_count = 0
-    summary_interval = 5  # 每5轮生成一次摘要
+    summary_interval = 1  # 每5轮生成一次摘要
 
-    def generate_summary_in_background(messages, world_description, turn_count, summary_interval):
+    def generate_summary_in_background(messages, world_description, save_name):
         """
         在后台线程中生成摘要并保存到 JSON 文件
         """
         nonlocal summary_generated
         try:
-            summary_text = summary.summarize_and_save(messages, world_description, turn_count, summary_interval)
+            summary_text, new_save_name = summary.summarize_and_save(messages, world_description, save_name)
             if summary_text:
                 summary_generated = True  # 标记摘要生成完成
+                if not save_name and new_save_name:
+                    print(f"本局游戏已自动命名为：{new_save_name}")
         except Exception as e:
             print("生成摘要时发生错误：", e)
 
@@ -150,7 +152,7 @@ def start_role_play(world_description,summary_text):
                 print("\n正在后台生成对话摘要，请继续游戏...\n")
                 summary_thread = threading.Thread(
                     target=generate_summary_in_background,
-                    args=(messages, world_description, turn_count, summary_interval)
+                    args=(messages, world_description, save_name)
                 )
                 summary_thread.start()
 
