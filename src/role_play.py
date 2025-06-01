@@ -14,13 +14,11 @@ client = openai.OpenAI(
     api_key=os.getenv("API_KEY")
 )
 
-def start_role_play(world_description, summary_text, save_name=None, last_conversation=None):
-    if not summary_text:
-        role = generate_character()
+def start_role_play(world_description, summary_text, save_name=None, last_conversation=None,role=None):
+    if not summary_text and not role:
+        role = generate_character(world_description)
         if not role:
             return
-    else:
-        role = None  # 读档时不再询问
 
     # 初始设定
     def build_system_prompt(include_last_conversation=True):
@@ -41,8 +39,8 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
         )
         if summary_text:
             prompt += f"\n剧情摘要：{summary_text}\n"
-        if summary_text and last_conversation:
-            prompt += f"\n上次对话：{last_conversation.get('content','')}\n,直接输出上次对话内容，不需要额外的提示。"
+            if last_conversation:
+                prompt += f"\n上次对话：{last_conversation.get('content','')}\n,直接输出上次对话内容，不需要额外的提示。"
         return prompt
 
     # 初始化对话历史
@@ -50,7 +48,7 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
         messages = [
             {"role": "system", "content": build_system_prompt(include_last_conversation)}
         ]
-        messages.append({"role": "user", "content": f"我扮演以下角色：{role}，请开始角色扮演游戏。"})
+        messages.append({"role": "user", "content": f"我扮演以下角色，请严格以该角色的身份和视角进行角色扮演，不要以旁观者或叙述者视角：\n{role}\n请开始角色扮演游戏。"})
         return messages
 
     # 首次AI回复，包含上次对话
@@ -74,8 +72,7 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
 
     # 首次回复后，去除上次对话内容，重建 system_prompt
     messages = get_init_messages(include_last_conversation=False)
-    if not summary_text and role:
-        messages.append({"role": "user", "content": f"我扮演以下角色：{role}，请开始角色扮演游戏。"})
+    messages.append({"role": "user", "content": f"我扮演以下角色：{role}，请开始角色扮演游戏,请以世界观的逻辑为主，不以扮演角色的逻辑为主。"})
     messages.append({"role": "assistant", "content": assistant_reply})
 
     turn_count = 0

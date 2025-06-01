@@ -17,11 +17,11 @@ def main_menu():
         choice = input("请选择操作（输入数字）：")
         if choice == "1":
             # 读取存档并进入角色扮演
-            world_desc, summary_text, save_name, last_conversation = load_summary.load_summary()
+            world_desc, summary_text, save_name, last_conversation,role = load_summary.load_summary()
             if world_desc and summary_text:
                 print(f"\n已加载存档：{save_name}")
                 if last_conversation:
-                    role_play.start_role_play(world_desc, summary_text, save_name, last_conversation)
+                    role_play.start_role_play(world_desc, summary_text, save_name, last_conversation,role)
                 return  # 结束主菜单
         elif choice == "2":
             background = input("请输入你想要的世界观背景（如：地理、历史、文化、魔法体系等，留空为默认）：")
@@ -45,7 +45,7 @@ def main_menu():
                         break  # 跳出当前循环，重新生成
                     elif sub_choice == "3":
                         print("\n进入角色扮演模式...")
-                        role_play.start_role_play(world_desc, None, None)
+                        role_play.start_role_play(world_desc, None, None,None)
                         return  # 结束主菜单
                     else:
                         print("无效选择，请重新输入")
