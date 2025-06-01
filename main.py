@@ -22,8 +22,6 @@ def main_menu():
                 print(f"\n已加载存档：{save_name}")
                 role_play.start_role_play(world_desc, summary_text, save_name)
                 return  # 结束主菜单
-            else:
-                print("未找到有效存档，请先进行一次游戏。")
         elif choice == "2":
             background = input("请输入你想要的世界观背景（如：地理、历史、文化、魔法体系等，留空为默认）：")
             if not background.strip():

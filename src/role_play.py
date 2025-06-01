@@ -64,7 +64,7 @@ def start_role_play(world_description, summary_text, save_name=None):
         return
 
     turn_count = 0
-    summary_interval = 1  # 每5轮生成一次摘要
+    summary_interval = int(os.getenv("SUMMARY_INTERVAL", 5))  # 摘要生成的轮数间隔，可在.env中自定义 # 每5轮生成一次摘要
 
     def generate_summary_in_background(messages, world_description, save_name):
         """
@@ -81,14 +81,10 @@ def start_role_play(world_description, summary_text, save_name=None):
             print("生成摘要时发生错误：", e)
 
     while True:
-        user_input = input("你的行动（输入'退出'结束游戏，重新开始，清屏，重新生成本回合）：")
+        user_input = input("你的行动（输入'退出'结束游戏，重新开始，重新生成本回合）：")
         if user_input == '退出':
             print("游戏已退出，再见！")
             break
-        elif user_input == '清屏':
-            os.system('cls')
-            print("屏幕已清空")
-            continue
         elif user_input == '重新开始':
             print("\n正在重新生成场景，请稍候...\n")
             messages = get_init_messages()
