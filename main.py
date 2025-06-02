@@ -4,12 +4,28 @@ from src import world_generation, role_play, error_handler
 import json
 from src.error_handler import error_handler
 from src import load_summary
+import random
 
 
 load_dotenv()
 
+def get_daily_quote():
+    with open("src/daily_quotes.json", "r", encoding="utf-8") as file:
+        quotes = json.load(file).get("quotes", [])
+    return random.choice(quotes) if quotes else "今日无名言，明日再试！"
+
 def main_menu():
+    os.system('cls')  # 清屏    
+    daily_quote = get_daily_quote()
     while True:
+        print("\n██╗    ██╗ ██████╗  █████╗ ██████╗ ██████╗")
+        print("██║    ██║██╔═══██╗██╔══██╗██╔══██╗██╔══██╗")
+        print("██║ █╗ ██║██║   ██║███████║██████╔╝██████╔╝")
+        print("██║███╗██║██║   ██║██╔══██║██╔═══╝ ██╔═══╝")
+        print("╚███╔███╔╝╚██████╔╝██║  ██║██║     ██║")
+        print(" ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝")
+        print("\n=== WGARP - 世界观生成与角色扮演程序 ===")
+        print(f"每日一言：{daily_quote}")
         print("\n=== 主菜单 ===")
         print("1. 读取存档开始游戏")
         print("2. 开始新游戏")
@@ -19,6 +35,7 @@ def main_menu():
             # 读取存档并进入角色扮演
             world_desc, summary_text, save_name, last_conversation,role = load_summary.load_summary()
             if world_desc and summary_text:
+                os.system('cls')  # 清屏
                 print(f"\n已加载存档：{save_name}")
                 if last_conversation:
                     role_play.start_role_play(world_desc, summary_text, save_name, last_conversation,role)
@@ -27,6 +44,7 @@ def main_menu():
             background = input("请输入你想要的世界观背景（如：地理、历史、文化、魔法体系等，留空为默认）：")
             if not background.strip():
                 background = "地理、历史、文化、魔法体系"
+            os.system('cls')  # 清屏
             while True:
                 print("\n正在生成世界观...")
                 world_desc = world_generation.generate_world(background)
@@ -44,6 +62,7 @@ def main_menu():
                             background = "地理、历史、文化、魔法体系"
                         break  # 跳出当前循环，重新生成
                     elif sub_choice == "3":
+                        os.system('cls')  # 清屏
                         print("\n进入角色扮演模式...")
                         role_play.start_role_play(world_desc, None, None,None)
                         return  # 结束主菜单

@@ -6,6 +6,7 @@ from src import error_handler, summary
 from src.error_handler import error_handler
 from src.character_generator import generate_character
 from src import summary
+from src.music_player import play_music_by_mood, stop_music
 
 
 # 加载环境变量
@@ -177,6 +178,23 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
             os.system('cls')  # 清屏
             print(assistant_reply)
 
+            # 调用AI生成基调并播放音乐
+            mood_prompt = "请根据以上内容生成一个基调（如：欢快、悲伤、紧张等），仅输出基调，不要添加其他内容。"
+            messages.append({"role": "user", "content": mood_prompt})
+            try:
+                mood_response = client.chat.completions.create(
+                    model=os.getenv("MODEL_NAME"),
+                    messages=messages,
+                    temperature=0.7
+                )
+                mood = mood_response.choices[0].message.content.strip()
+                if mood:
+                    play_music_by_mood(mood)
+                else:
+                    assistant_reply +="AI未生成基调，重新生成..."
+            except Exception as e:
+                error_handler.handle_llm_error(e)
+
             # 每x轮生成一次摘要，并在后台线程中执行
             turn_count += 1
             if turn_count % summary_interval == 0:
@@ -189,3 +207,4 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
 
         except Exception as e:
             error_handler.handle_llm_error(e)
+
