@@ -22,6 +22,14 @@ def play_music_by_mood(mood):
         print("音乐播放已关闭。")
         return
 
+    # 动态读取基调文件夹名称
+    available_moods = [name for name in os.listdir(MUSIC_FOLDER) if os.path.isdir(os.path.join(MUSIC_FOLDER, name))]
+
+    # 如果基调不存在，随机选择一个
+    if mood not in available_moods:
+        print(f"基调'{mood}'无效，随机选择一个基调。")
+        mood = random.choice(available_moods)
+
     mood_folder = os.path.join(MUSIC_FOLDER, mood)
     if not os.path.exists(mood_folder):
         print(f"未找到基调为'{mood}'的音乐文件夹。")
@@ -29,7 +37,6 @@ def play_music_by_mood(mood):
 
     music_files = [f for f in os.listdir(mood_folder) if f.endswith(".mp3")]
     if not music_files:
-        print(f"基调为'{mood}'的文件夹中没有音乐文件。")
         return
 
     # 随机选择一首音乐
@@ -41,7 +48,6 @@ def play_music_by_mood(mood):
     pygame.mixer.music.load(music_path)
     pygame.mixer.music.play()
 
-    print(f"正在播放基调为'{mood}'的音乐：{music_file}")
 
 def stop_music():
     """停止播放音乐"""

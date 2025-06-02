@@ -7,6 +7,10 @@ from src.error_handler import error_handler
 from src.character_generator import generate_character
 from src import summary
 from src.music_player import play_music_by_mood, stop_music
+import random
+
+# 定义音乐文件夹路径，可以从环境变量读取或设置默认值
+MUSIC_FOLDER = "game_music"
 
 
 # 加载环境变量
@@ -179,7 +183,7 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
             print(assistant_reply)
 
             # 调用AI生成基调并播放音乐
-            mood_prompt = "请根据以上内容生成一个基调（如：欢快、悲伤、紧张等），仅输出基调，不要添加其他内容。"
+            mood_prompt = "请根据以上内容生成一个基调（仅输出基调，不要添加其他内容）。"
             messages.append({"role": "user", "content": mood_prompt})
             try:
                 mood_response = client.chat.completions.create(
@@ -188,10 +192,24 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
                     temperature=0.7
                 )
                 mood = mood_response.choices[0].message.content.strip()
+
+                # 动态读取基调文件夹名称
+                available_moods = [name for name in os.listdir(MUSIC_FOLDER) if os.path.isdir(os.path.join(MUSIC_FOLDER, name))]
+
+                while mood not in available_moods:
+                    print(f"AI生成的基调'{mood}'无效，重新生成基调。")
+                    mood_response = client.chat.completions.create(
+                        model=os.getenv("MODEL_NAME"),
+                        messages=messages,
+                        temperature=0.7
+                    )
+                    mood = mood_response.choices[0].message.content.strip()
+
                 if mood:
                     play_music_by_mood(mood)
+                    assistant_reply += f"\n\n正在播放基调为'{mood}'的音乐。"
                 else:
-                    assistant_reply +="AI未生成基调，重新生成..."
+                    assistant_reply += "AI未生成基调，重新生成..."
             except Exception as e:
                 error_handler.handle_llm_error(e)
 
