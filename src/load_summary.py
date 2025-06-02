@@ -15,8 +15,7 @@ def load_summary():
     if not files:
         print("未找到任何存档文件，需要先进行游戏存档")
         return None, None, None,None,None
-    if not save_name:
-        while True:
+    while True:
             print("可用存档：")
             for idx, f in enumerate(files):
                 print(f"[{idx+1}] {f[:-5]}")

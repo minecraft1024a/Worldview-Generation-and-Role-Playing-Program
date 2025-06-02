@@ -5,6 +5,7 @@ import threading
 from src import error_handler, summary
 from src.error_handler import error_handler
 from src.character_generator import generate_character
+from src import summary
 
 
 # 加载环境变量
@@ -23,7 +24,7 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
     # 初始设定
     def build_system_prompt(include_last_conversation=True):
         prompt = (
-            "你是一个角色扮演游戏大师，请严格按照如下格式输出每一轮内容：\n"
+            "你是一个角色设定生成器和角色扮演大师。请严格按照如下格式输出每一轮内容，不要添加任何解释或多余内容：\n"
             "用户身份：\n"
             "时间:\n"
             "地点:\n"
@@ -36,6 +37,18 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
             "用户接下来的选择(使用数字标记):\n"
             "请根据以下世界观进行角色扮演：\n"
             f"{world_description}\n"
+            "【格式示例】\n"
+            "用户身份：艾琳·星语\n"
+            "时间: 晨曦初升\n"
+            "地点: 雾林边境\n"
+            "情景: 你正站在雾林边境，准备踏入未知的冒险。\n"
+            "===============\n"
+            "用户状态: 精神饱满，装备齐全\n"
+            "===============\n"
+            "用户物品栏: 魔法短杖，旅行斗篷，干粮\n"
+            "===============\n"
+            "用户接下来的选择(使用数字标记):\n1. 进入雾林 2. 检查装备 3. 休息片刻\n"
+            "请严格按照上述格式输出每一轮内容，不要输出任何解释或多余内容。"
         )
         if summary_text:
             prompt += f"\n剧情摘要：{summary_text}\n"
@@ -48,14 +61,14 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
         messages = [
             {"role": "system", "content": build_system_prompt(include_last_conversation)}
         ]
-        messages.append({"role": "user", "content": f"我扮演以下角色，请严格以该角色的身份和视角进行角色扮演，不要以旁观者或叙述者视角：\n{role}\n请开始角色扮演游戏。"})
+        messages.append({"role": "user", "content": f"我扮演以下角色，请以该角色的身份和视角进行角色扮演，不要以旁观者或叙述者视角：\n{role}\n请开始角色扮演游戏。"})
         return messages
 
     # 首次AI回复，包含上次对话
     messages = get_init_messages(include_last_conversation=True)
     summary_generated = False
 
-    # 首次AI回复
+    # 首次回复
     try:
         response = client.chat.completions.create(
             model=os.getenv("MODEL_NAME"),
@@ -84,12 +97,19 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
         """
         nonlocal summary_generated
         try:
-            # 新增：将角色信息传递给summary保存
-            summary_text, new_save_name = summary.summarize_and_save(messages, world_description, save_name, role)
+            # 摘要生成时不包含最后一轮AI回复
+            if messages and messages[-1]["role"] == "assistant":
+                summary_messages = messages[:-1]
+                last_ai_reply = messages[-1]
+            else:
+                summary_messages = messages
+                last_ai_reply = None
+            summary_text, new_save_name = summary.summarize_and_save(summary_messages, world_description, save_name, role)
+            # 摘要生成完毕后再把最后一轮AI回复加进存档
+            if last_ai_reply:
+                summary.save_last_conversation(save_name or new_save_name, last_ai_reply)
             if summary_text:
                 summary_generated = True  # 标记摘要生成完成
-                if not save_name and new_save_name:
-                    print(f"\n本局游戏已自动命名为：{new_save_name}\n")
         except Exception as e:
             print("生成摘要时发生错误：", e)
 
@@ -148,7 +168,9 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
 
             # 如果摘要生成完成，在输出末尾附加提示
             if summary_generated:
-                assistant_reply += "\n\n（摘要生成完成）"
+                # 获取当前存档名
+                summary_name = save_name if save_name else "(无名存档)"
+                assistant_reply += f"\n\n（摘要生成完成，存档名：{summary_name}）"
                 summary_generated = False  # 重置标志
 
             messages.append({"role": "assistant", "content": assistant_reply})
