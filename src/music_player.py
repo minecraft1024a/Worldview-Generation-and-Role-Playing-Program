@@ -27,12 +27,10 @@ def play_music_by_mood(mood):
 
     # 如果基调不存在，随机选择一个
     if mood not in available_moods:
-        print(f"基调'{mood}'无效，随机选择一个基调。")
         mood = random.choice(available_moods)
 
     mood_folder = os.path.join(MUSIC_FOLDER, mood)
     if not os.path.exists(mood_folder):
-        print(f"未找到基调为'{mood}'的音乐文件夹。")
         return
 
     music_files = [f for f in os.listdir(mood_folder) if f.endswith(".mp3")]
@@ -46,6 +44,7 @@ def play_music_by_mood(mood):
     # 初始化并播放音乐
     pygame.mixer.init()
     pygame.mixer.music.load(music_path)
+    pygame.mixer.music.set_volume(0.5)  # 设置音量为50%
     pygame.mixer.music.play()
 
 
@@ -54,3 +53,15 @@ def stop_music():
     if pygame.mixer.get_init():
         pygame.mixer.music.stop()
         pygame.mixer.quit()
+
+def pause_music():
+    """暂停播放音乐"""
+    if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
+        pygame.mixer.music.pause()
+        print("音乐已暂停。")
+
+def resume_music():
+    """恢复播放音乐"""
+    if pygame.mixer.get_init():
+        pygame.mixer.music.unpause()
+        print("音乐已恢复播放。")

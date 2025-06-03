@@ -6,7 +6,7 @@ from src import error_handler, summary
 from src.error_handler import error_handler
 from src.character_generator import generate_character
 from src import summary
-from src.music_player import play_music_by_mood, stop_music
+from src.music_player import play_music_by_mood, stop_music, pause_music, resume_music
 import random
 
 # 定义音乐文件夹路径，可以从环境变量读取或设置默认值
@@ -118,11 +118,23 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
         except Exception as e:
             print("生成摘要时发生错误：", e)
 
+    music_paused = False  # 添加一个标志变量，跟踪音乐是否处于暂停状态
+
     while True:
-        user_input = input("你的行动（输入'退出'结束游戏，重新开始，重新生成本回合）：")
+        user_input = input("你的行动（输入'退出'结束游戏，重新开始，重新生成本回合，暂停音乐，恢复音乐）：")
         if user_input == '退出':
             print("游戏已退出，再见！")
             break
+        elif user_input == '暂停音乐':
+            if not music_paused:
+                pause_music()
+                music_paused = True
+            continue
+        elif user_input == '恢复音乐':
+            if music_paused:
+                resume_music()
+                music_paused = False
+            continue
         elif user_input == '重新开始':
             print("\n正在重新生成场景，请稍候...\n")
             messages = get_init_messages()
@@ -182,22 +194,21 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
             os.system('cls')  # 清屏
             print(assistant_reply)
 
-            # 调用AI生成基调并播放音乐
-            mood_prompt = "请根据以上内容生成一个基调（仅输出基调，不要添加其他内容）。"
-            messages.append({"role": "user", "content": mood_prompt})
-            try:
-                mood_response = client.chat.completions.create(
-                    model=os.getenv("MODEL_NAME"),
-                    messages=messages,
-                    temperature=0.7
-                )
-                mood = mood_response.choices[0].message.content.strip()
+            # 检查音乐播放开关
+            enable_music = os.getenv("ENABLE_MUSIC", "true").lower() == "true"
 
-                # 动态读取基调文件夹名称
+            if enable_music and not music_paused and turn_count % 3 == 0:  # 每三回合播放一次音乐
+                # 调用AI生成基调并播放音乐
                 available_moods = [name for name in os.listdir(MUSIC_FOLDER) if os.path.isdir(os.path.join(MUSIC_FOLDER, name))]
-
-                while mood not in available_moods:
-                    print(f"AI生成的基调'{mood}'无效，重新生成基调。")
+                mood_options = "\n".join([f"- {name}" for name in available_moods])
+                mood_prompt = (
+                    "请根据刚才的内容和以下情景，从下列基调中选择一个最合适的基调，只能选择并输出下列基调名称之一：\n"
+                    f"情景：{assistant_reply}\n"
+                    f"{mood_options}\n"
+                    "【重要】只能输出上面列表中的一个基调名称，不能输出编号、标点、解释、换行或任何其他内容。直接输出名称本身。"
+                )
+                messages.append({"role": "user", "content": mood_prompt})
+                try:
                     mood_response = client.chat.completions.create(
                         model=os.getenv("MODEL_NAME"),
                         messages=messages,
@@ -205,13 +216,23 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
                     )
                     mood = mood_response.choices[0].message.content.strip()
 
-                if mood:
-                    play_music_by_mood(mood)
-                    assistant_reply += f"\n\n正在播放基调为'{mood}'的音乐。"
-                else:
-                    assistant_reply += "AI未生成基调，重新生成..."
-            except Exception as e:
-                error_handler.handle_llm_error(e)
+                    # 动态读取基调文件夹名称
+                    while mood not in available_moods:
+                        print(f"AI生成的基调'{mood}'无效，重新生成基调。")
+                        mood_response = client.chat.completions.create(
+                            model=os.getenv("MODEL_NAME"),
+                            messages=messages,
+                            temperature=0.7
+                        )
+                        mood = mood_response.choices[0].message.content.strip()
+
+                    if mood:
+                        play_music_by_mood(mood)
+                        assistant_reply += f"\n\n正在播放基调为'{mood}'的音乐。"
+                    else:
+                        assistant_reply += "AI未生成基调，重新生成..."
+                except Exception as e:
+                    error_handler.handle_llm_error(e)
 
             # 每x轮生成一次摘要，并在后台线程中执行
             turn_count += 1
