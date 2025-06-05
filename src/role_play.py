@@ -8,6 +8,7 @@ from src.character_generator import generate_character
 from src import summary
 from src.music_player import play_music_by_mood, stop_music, pause_music, resume_music
 import random
+import time
 
 # 定义音乐文件夹路径，可以从环境变量读取或设置默认值
 MUSIC_FOLDER = "game_music"
@@ -273,9 +274,12 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
                     error_handler.handle_llm_error(e)
 
             # 输出AI回复
-            if not enable_music or turn_count % 3 != 0:
-                os.system('cls')  # 清屏
-                print(assistant_reply)
+            os.system('cls')  # 清屏
+            print(assistant_reply)
+
+            # 确保在一局游戏中保存到同一个存档
+            if not save_name:
+                save_name = f"game_save_{int(time.time())}"  # 使用时间戳生成唯一存档名
 
             # 每x轮生成一次摘要，并在后台线程中执行
             turn_count += 1
