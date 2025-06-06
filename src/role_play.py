@@ -9,6 +9,7 @@ from src import summary
 from src.music_player import play_music_by_mood, stop_music, pause_music, resume_music
 import random
 import time
+import queue
 
 # 定义音乐文件夹路径，可以从环境变量读取或设置默认值
 MUSIC_FOLDER = "game_music"
@@ -59,7 +60,7 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
         if summary_text:
             prompt += f"\n剧情摘要：{summary_text}\n"
             if last_conversation:
-                prompt += f"\n上次对话：{last_conversation.get('content','')}\n,直接输出上次对话内容，不需要额外的提示。"
+                prompt = f"\n上次对话：{last_conversation.get('content','')}\n,直接输出上次对话内容，不需要额外的提示。"
         return prompt
 
     # 初始化对话历史
@@ -73,6 +74,7 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
     # 首次AI回复，包含上次对话
     messages = get_init_messages(include_last_conversation=True)
     summary_generated = False
+    summary_save_name_queue = queue.Queue()  # 新增队列用于传递save_name
 
     # 首次回复
     try:
@@ -96,6 +98,7 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
 
     turn_count = 0
     summary_interval = int(os.getenv("SUMMARY_INTERVAL", 5))  # 摘要生成的轮数间隔，可在.env中自定义
+    summary_save_name_queue = queue.Queue()  # 用于线程间传递实际存档名
 
     def generate_summary_in_background(messages, world_description, save_name):
         """
@@ -113,14 +116,28 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
             summary_text, new_save_name = summary.summarize_and_save(summary_messages, world_description, save_name, role)
             # 摘要生成完毕后再把最后一轮AI回复加进存档
             if last_ai_reply:
-                summary.save_last_conversation(save_name or new_save_name, last_ai_reply)
+                summary.save_last_conversation(new_save_name or save_name, last_ai_reply)
             if summary_text:
                 summary_generated = True  # 标记摘要生成完成
+            # 将实际save_name放入队列
+            summary_save_name_queue.put(new_save_name or save_name)
+            return new_save_name or save_name
         except Exception as e:
             print("生成摘要时发生错误：", e)
+            summary_save_name_queue.put(save_name)
+            return save_name
 
     while True:
+        # 检查摘要线程是否有新存档名
+        new_save_name = None
+        while not summary_save_name_queue.empty():
+            new_save_name = summary_save_name_queue.get()
+        if new_save_name:
+            save_name = new_save_name
+
         user_input = input("你的行动（输入'退出'结束游戏，重新开始，重新生成本回合）：")
+        while not user_input.strip():
+            user_input = input("你的行动（输入'退出'结束游戏，重新开始，重新生成本回合）：")
         if user_input == '退出':
             print("游戏已退出，再见！")
             break
@@ -172,11 +189,10 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
             )
             assistant_reply = response.choices[0].message.content
 
-            # 如果摘要生成完成，在输出末尾附加提示
-            if summary_generated:
-                # 获取当前存档名
-                summary_name = save_name if save_name else "(无名存档)"
-                assistant_reply += f"\n\n（摘要生成完成，存档名：{summary_name}）"
+            # 检查摘要生成队列，若有新save_name则输出
+            if not summary_save_name_queue.empty():
+                latest_save_name = summary_save_name_queue.get()
+                assistant_reply += f"\n\n（摘要生成完成，存档名：{latest_save_name}）"
                 summary_generated = False  # 重置标志
 
             messages.append({"role": "assistant", "content": assistant_reply})
@@ -277,9 +293,6 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
             os.system('cls')  # 清屏
             print(assistant_reply)
 
-            # 确保在一局游戏中保存到同一个存档
-            if not save_name:
-                save_name = f"game_save_{int(time.time())}"  # 使用时间戳生成唯一存档名
 
             # 每x轮生成一次摘要，并在后台线程中执行
             turn_count += 1

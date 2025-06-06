@@ -28,10 +28,15 @@ def get_save_name(summary_text):
         save_name = response.choices[0].message.content.strip().replace(" ", "")
         for ch in r'\\/:*?\"<>|':
             save_name = save_name.replace(ch, "")
-        return save_name or "未命名存档"
+        # 加入时间戳，确保唯一
+        import time
+        timestamp = int(time.time())
+        save_name = f"{save_name}_{timestamp}"
+        return save_name or f"未命名存档_{timestamp}"
     except Exception as e:
         error_handler.handle_llm_error(e)
-        return "未命名存档"
+        import time
+        return f"未命名存档_{int(time.time())}"
 
 def summarize_and_save(messages, world_description, save_name=None, role=None):
     """
@@ -42,7 +47,7 @@ def summarize_and_save(messages, world_description, save_name=None, role=None):
         response = client.chat.completions.create(
             model=os.getenv("MODEL_NAME"),
             messages=[
-                {"role": "system", "content": "请对以下对话历史进行简洁总结，提取关键剧情发展和和用户的状态，身份和物品档："},
+                {"role": "system", "content": "请对以下对话历史进行总结，提取剧情和用户的状态，身份和物品档："},
                 {"role": "user", "content": "\n".join([f"{msg['role']}: {msg['content']}" for msg in messages])}
             ],
             temperature=0.5
