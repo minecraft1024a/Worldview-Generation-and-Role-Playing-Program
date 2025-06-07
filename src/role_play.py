@@ -60,7 +60,7 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
         if summary_text:
             prompt += f"\n剧情摘要：{summary_text}\n"
             if last_conversation:
-                prompt = f"\n上次对话：{last_conversation.get('content','')}\n,直接输出上次对话内容，不需要额外的提示。"
+                prompt += f"\n上次对话：{last_conversation.get('content','')}\n,直接输出上次对话内容，不需要额外的提示。"
         return prompt
 
     # 初始化对话历史
