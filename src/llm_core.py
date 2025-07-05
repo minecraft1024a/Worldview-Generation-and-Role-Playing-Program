@@ -122,6 +122,66 @@ class LLMCore:
         if result:
             return result.strip() == '是'
         return False
+    
+    def generate_smart_summary(self, messages, previous_summary="", max_tokens=1000):
+        """生成智能摘要，优化Token使用"""
+        # 构建高效的摘要提示
+        if previous_summary:
+            # 增量摘要模式
+            recent_content = self._extract_key_content(messages[-6:])
+            prompt = f"之前摘要：{previous_summary[:300]}\n最新进展：{recent_content}\n请更新摘要(限200字)："
+        else:
+            # 全新摘要模式
+            key_content = self._extract_key_content(messages)
+            prompt = f"对话内容：{key_content}\n请生成简洁摘要(限200字)："
+        
+        messages_to_send = [{"role": "user", "content": prompt}]
+        return self._make_request(messages_to_send, temperature=0.3)
+    
+    def _extract_key_content(self, messages):
+        """提取对话的关键内容，移除冗余信息"""
+        key_parts = []
+        for msg in messages:
+            content = msg.get("content", "")
+            
+            # 移除系统性信息
+            if "正在播放" in content or "摘要生成" in content:
+                continue
+            
+            # 提取核心动作和结果
+            if msg.get("role") == "user" and content.startswith("我的行动："):
+                action = content[5:].strip()
+                key_parts.append(f"行动：{action}")
+            elif msg.get("role") == "assistant":
+                # 提取关键场景信息
+                scenario = self._extract_scenario_info(content)
+                if scenario:
+                    key_parts.append(f"结果：{scenario}")
+        
+        return " | ".join(key_parts[-8:])  # 只保留最近8个关键点
+    
+    def _extract_scenario_info(self, content):
+        """从AI回复中提取关键场景信息"""
+        lines = content.split('\n')
+        important_lines = []
+        
+        for line in lines:
+            line = line.strip()
+            if line and not line.startswith('=') and '：' in line:
+                # 保留包含关键信息的行
+                if any(keyword in line for keyword in ['情景', '地点', '状态', '物品', '选择']):
+                    important_lines.append(line)
+        
+        return ' '.join(important_lines[:3])  # 最多保留3行关键信息
+    
+    def generate_compact_save_name(self, summary):
+        """生成紧凑的存档名"""
+        # 使用更简短的提示来生成存档名
+        short_summary = summary[:100] if len(summary) > 100 else summary
+        messages = [
+            {"role": "user", "content": f"为以下内容生成5字以内的标题：{short_summary}"}
+        ]
+        return self._make_request(messages, temperature=0.5)
 
 # 创建全局LLM实例
 llm_core = LLMCore()

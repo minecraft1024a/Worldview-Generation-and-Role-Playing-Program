@@ -1,11 +1,11 @@
 from src.llm_core import llm_core
+from src.summary import save_manager  # 使用新的存档管理器
 from dotenv import load_dotenv
 import os
 import threading
 from src import error_handler, summary
 from src.error_handler import error_handler
 from src.character_generator import generate_character
-from src import summary
 from src.music_player import play_music_by_mood
 import queue
 
@@ -85,43 +85,51 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
 
     turn_count = 0
     mood = None  # 初始化音乐基调变量
-    summary_interval = int(os.getenv("SUMMARY_INTERVAL", 5))  # 摘要生成的轮数间隔，可在.env中自定义
+    current_summary = summary_text or ""  # 当前摘要，用于增量更新
+    summary_interval = int(os.getenv("SUMMARY_INTERVAL", 5))  # 摘要生成的轮数间隔
     summary_save_name_queue = queue.Queue()  # 用于线程间传递实际存档名
 
-    def generate_summary_in_background(messages, world_description, save_name):
+    def generate_smart_summary_in_background(messages, world_description, save_name, previous_summary):
         """
-        在后台线程中生成摘要并保存到 JSON 文件
+        智能后台摘要生成 - 使用增量更新和Token优化
         """
         nonlocal summary_generated
         try:
-            # 摘要生成时不包含最后一轮AI回复
-            if messages and messages[-1]["role"] == "assistant":
-                summary_messages = messages[:-1]
-                last_ai_reply = messages[-1]
-            else:
-                summary_messages = messages
-                last_ai_reply = None
-            summary_text, new_save_name = summary.summarize_and_save(summary_messages, world_description, save_name, role)
-            # 摘要生成完毕后再把最后一轮AI回复加进存档
-            if last_ai_reply:
-                summary.save_last_conversation(new_save_name or save_name, last_ai_reply)
+            # 使用新的智能存档管理器
+            summary_text, new_save_name = save_manager.save_game_state(
+                messages, world_description, save_name, role, previous_summary
+            )
+            
             if summary_text:
-                summary_generated = True  # 标记摘要生成完成
+                summary_generated = True
+                # 不在这里打印，通过队列传递信息到主线程显示
+            
             # 将实际save_name放入队列
             summary_save_name_queue.put(new_save_name or save_name)
-            return new_save_name or save_name
+            return new_save_name or save_name, summary_text
+            
         except Exception as e:
-            print("生成摘要时发生错误：", e)
+            # 静默处理错误，避免打断用户输入
+            import logging
+            logging.warning(f"生成摘要时发生错误: {e}")
+            assistant_reply += f"生成摘要时发生错误: {e}"
             summary_save_name_queue.put(save_name)
-            return save_name
+            return save_name, previous_summary
 
     while True:
-        # 检查摘要线程是否有新存档名
+        # 检查摘要线程是否有新存档名和摘要更新
         new_save_name = None
         while not summary_save_name_queue.empty():
             new_save_name = summary_save_name_queue.get()
         if new_save_name:
             save_name = new_save_name
+            # 同时更新当前摘要（用于下次增量更新）
+            try:
+                save_data = save_manager.load_game_state(save_name)
+                if save_data[1]:  # 如果成功加载摘要
+                    current_summary = save_data[1]
+            except:
+                pass
 
         user_input = input("你的行动（输入'退出'结束游戏，重新开始，重新生成本回合）：")
         while not user_input.strip():
@@ -159,62 +167,66 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
         if assistant_reply is None:
             continue
 
-            # 检查摘要生成队列，若有新save_name则输出
-            if not summary_save_name_queue.empty():
-                latest_save_name = summary_save_name_queue.get()
-                assistant_reply += f"\n\n（摘要生成完成，存档名：{latest_save_name}）"
-                summary_generated = False  # 重置标志
+        # 检查摘要生成队列，若有新save_name则添加到回复中
+        if not summary_save_name_queue.empty():
+            latest_save_name = summary_save_name_queue.get()
+            assistant_reply += f"\n\n💾 进度已自动保存: {latest_save_name}"
+            summary_generated = False  # 重置标志
 
-            messages.append({"role": "assistant", "content": assistant_reply})
+        messages.append({"role": "assistant", "content": assistant_reply})
 
-            # 检查音乐播放开关
-            enable_music = os.getenv("ENABLE_MUSIC", "true").lower() == "true"
+        # 检查音乐播放开关
+        enable_music = os.getenv("ENABLE_MUSIC", "true").lower() == "true"
 
-            if enable_music and turn_count == 0:  # 第零回合自动播放音乐
-                available_moods = [name for name in os.listdir(MUSIC_FOLDER) if os.path.isdir(os.path.join(MUSIC_FOLDER, name))]
+        if enable_music and turn_count == 0:  # 第零回合自动播放音乐
+            available_moods = [name for name in os.listdir(MUSIC_FOLDER) if os.path.isdir(os.path.join(MUSIC_FOLDER, name))]
+            mood = llm_core.select_music_mood(assistant_reply, available_moods)
+
+            # 动态读取基调文件夹名称，静默重试
+            retry_count = 0
+            while mood not in available_moods and retry_count < 3:
                 mood = llm_core.select_music_mood(assistant_reply, available_moods)
+                retry_count += 1
 
-                # 动态读取基调文件夹名称
-                while mood not in available_moods:
-                    print(f"AI生成的基调'{mood}'无效，重新生成基调。")
-                    mood = llm_core.select_music_mood(assistant_reply, available_moods)
+            if mood and mood in available_moods:
+                music_status = play_music_by_mood(mood)
+                # 只在AI回复中显示音乐信息，不单独打印
+                assistant_reply += f"\n\n🎵 {mood}基调音乐已开始播放"
+            else:
+                # 静默处理，不显示错误信息
+                pass
+        elif enable_music and (turn_count % 3 == 0 or turn_count == 0):  # 每三回合检查是否需要更换音乐
+            should_change = llm_core.should_change_music(assistant_reply, mood)
+            
+            if should_change:
+                # 调用AI生成基调并播放音乐
+                available_moods = [name for name in os.listdir(MUSIC_FOLDER) if os.path.isdir(os.path.join(MUSIC_FOLDER, name))]
+                new_mood = llm_core.select_music_mood(assistant_reply, available_moods)
 
-                if mood:
-                    play_music_by_mood(mood)
-                    assistant_reply += f"\n\n正在播放基调为'{mood}'的音乐。"
-                else:
-                    assistant_reply += "AI未生成基调，重新生成..."
-            elif enable_music and (turn_count % 3 == 0 or turn_count == 0):  # 每三回合检查是否需要更换音乐
-                should_change = llm_core.should_change_music(assistant_reply, mood)
-                
-                if should_change:
-                    # 调用AI生成基调并播放音乐
-                    available_moods = [name for name in os.listdir(MUSIC_FOLDER) if os.path.isdir(os.path.join(MUSIC_FOLDER, name))]
-                    mood = llm_core.select_music_mood(assistant_reply, available_moods)
+                # 静默重试，避免打印错误信息
+                retry_count = 0
+                while new_mood not in available_moods and retry_count < 3:
+                    new_mood = llm_core.select_music_mood(assistant_reply, available_moods)
+                    retry_count += 1
 
-                    # 动态读取基调文件夹名称
-                    while mood not in available_moods:
-                        print(f"AI生成的基调'{mood}'无效，重新生成基调。")
-                        mood = llm_core.select_music_mood(assistant_reply, available_moods)
+                if new_mood and new_mood in available_moods:
+                    mood = new_mood  # 更新当前基调
+                    music_status = play_music_by_mood(mood)
+                    assistant_reply += f"\n\n🎵 音乐已切换至{mood}基调"
+                # 如果无法生成有效基调，静默处理，不添加错误信息
 
-                    if mood:
-                        play_music_by_mood(mood)
-                        assistant_reply += f"\n\n正在播放基调为'{mood}'的音乐。"
-                    else:
-                        assistant_reply += "AI未生成基调，重新生成..."
+        # 输出AI回复
+        os.system('cls')  # 清屏
+        print(assistant_reply)
 
-            # 输出AI回复
-            os.system('cls')  # 清屏
-            print(assistant_reply)
-
-
-            # 每x轮生成一次摘要，并在后台线程中执行
-            turn_count += 1
-            if turn_count % summary_interval == 0:
-                print("\n正在后台生成对话摘要，请继续游戏...\n")
-                summary_thread = threading.Thread(
-                    target=generate_summary_in_background,
-                    args=(messages, world_description, save_name)
-                )
-                summary_thread.start()
+        # 每x轮生成一次智能摘要，并在后台线程中执行
+        turn_count += 1
+        if turn_count % summary_interval == 0:
+            assistant_reply += f"\n\n💾 进度自动保存中..."
+            # 静默启动后台摘要生成，不打印提示
+            summary_thread = threading.Thread(
+                target=generate_smart_summary_in_background,
+                args=(messages, world_description, save_name, current_summary)
+            )
+            summary_thread.start()
 
