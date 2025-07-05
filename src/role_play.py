@@ -1,4 +1,4 @@
-import openai
+from src.llm_core import llm_core
 from dotenv import load_dotenv
 import os
 import threading
@@ -6,21 +6,14 @@ from src import error_handler, summary
 from src.error_handler import error_handler
 from src.character_generator import generate_character
 from src import summary
-from src.music_player import play_music_by_mood, stop_music, pause_music, resume_music
-import random
-import time
+from src.music_player import play_music_by_mood
 import queue
 
 # 定义音乐文件夹路径，可以从环境变量读取或设置默认值
 MUSIC_FOLDER = "game_music"
 
-
 # 加载环境变量
 load_dotenv()
-client = openai.OpenAI(
-    base_url=os.getenv("API_URL"),
-    api_key=os.getenv("API_KEY")
-)
 
 def start_role_play(world_description, summary_text, save_name=None, last_conversation=None,role=None):
     if not summary_text and not role:
@@ -77,19 +70,13 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
     summary_save_name_queue = queue.Queue()  # 新增队列用于传递save_name
 
     # 首次回复
-    try:
-        response = client.chat.completions.create(
-            model=os.getenv("MODEL_NAME"),
-            messages=messages,
-            temperature=0.7
-        )
-        assistant_reply = response.choices[0].message.content
-        messages.append({"role": "assistant", "content": assistant_reply})
-        os.system('cls')  # 清屏
-        print(assistant_reply)
-    except Exception as e:
-        error_handler.handle_llm_error(e)
+    assistant_reply = llm_core.role_play_response(messages, temperature=0.7)
+    if assistant_reply is None:
         return
+        
+    messages.append({"role": "assistant", "content": assistant_reply})
+    os.system('cls')  # 清屏
+    print(assistant_reply)
 
     # 首次回复后，去除上次对话内容，重建 system_prompt
     messages = get_init_messages(include_last_conversation=False)
@@ -97,6 +84,7 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
     messages.append({"role": "assistant", "content": assistant_reply})
 
     turn_count = 0
+    mood = None  # 初始化音乐基调变量
     summary_interval = int(os.getenv("SUMMARY_INTERVAL", 5))  # 摘要生成的轮数间隔，可在.env中自定义
     summary_save_name_queue = queue.Queue()  # 用于线程间传递实际存档名
 
@@ -144,36 +132,22 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
         elif user_input == '重新开始':
             print("\n正在重新生成场景，请稍候...\n")
             messages = get_init_messages()
-            try:
-                response = client.chat.completions.create(
-                    model=os.getenv("MODEL_NAME"),
-                    messages=messages,
-                    temperature=0.7
-                )
-                assistant_reply = response.choices[0].message.content
+            assistant_reply = llm_core.role_play_response(messages, temperature=0.7)
+            if assistant_reply:
                 messages.append({"role": "assistant", "content": assistant_reply})
                 os.system('cls')  # 清屏
                 print("=== 新的场景已生成 ===")
                 print(assistant_reply)
-            except Exception as e:
-                error_handler.handle_llm_error(e)
             continue
         elif user_input == '重新生成本回合':
             print("\n正在重新生成本回合内容，请稍候...\n")
             if len(messages) >= 2 and messages[-1]["role"] == "assistant" and messages[-2]["role"] == "user":
                 messages = messages[:-1]  # 移除最后一个assistant回复
-                try:
-                    response = client.chat.completions.create(
-                        model=os.getenv("MODEL_NAME"),
-                        messages=messages,
-                        temperature=0.7
-                    )
-                    assistant_reply = response.choices[0].message.content
+                assistant_reply = llm_core.role_play_response(messages, temperature=0.7)
+                if assistant_reply:
                     messages.append({"role": "assistant", "content": assistant_reply})
                     print("=== 本回合内容已重新生成 ===")
                     print(assistant_reply)
-                except Exception as e:
-                    error_handler.handle_llm_error(e)
             else:
                 print("无法重新生成本回合（历史记录不足）")
             continue
@@ -181,13 +155,9 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
         # 用户输入内嵌到提示中，并追加到对话历史
         action_prompt = f"我的行动：{user_input}"
         messages.append({"role": "user", "content": action_prompt})
-        try:
-            response = client.chat.completions.create(
-                model=os.getenv("MODEL_NAME"),
-                messages=messages,
-                temperature=0.7
-            )
-            assistant_reply = response.choices[0].message.content
+        assistant_reply = llm_core.role_play_response(messages, temperature=0.7)
+        if assistant_reply is None:
+            continue
 
             # 检查摘要生成队列，若有新save_name则输出
             if not summary_save_name_queue.empty():
@@ -202,92 +172,36 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
 
             if enable_music and turn_count == 0:  # 第零回合自动播放音乐
                 available_moods = [name for name in os.listdir(MUSIC_FOLDER) if os.path.isdir(os.path.join(MUSIC_FOLDER, name))]
-                mood_options = "\n".join([f"- {name}" for name in available_moods])
-                mood_prompt = (
-                    "请根据以下情景，从下列基调中选择一个最合适的基调，只能选择并输出下列基调名称之一：\n"
-                    f"情景：{assistant_reply}\n"
-                    f"{mood_options}\n"
-                    "【重要】只能输出上面列表中的一个基调名称，不能输出编号、标点、解释、换行或任何其他内容。直接输出名称本身。"
-                )
-                messages.append({"role": "user", "content": mood_prompt})
-                try:
-                    mood_response = client.chat.completions.create(
-                        model=os.getenv("MODEL_NAME"),
-                        messages=messages,
-                        temperature=0.7
-                    )
-                    mood = mood_response.choices[0].message.content.strip()
+                mood = llm_core.select_music_mood(assistant_reply, available_moods)
+
+                # 动态读取基调文件夹名称
+                while mood not in available_moods:
+                    print(f"AI生成的基调'{mood}'无效，重新生成基调。")
+                    mood = llm_core.select_music_mood(assistant_reply, available_moods)
+
+                if mood:
+                    play_music_by_mood(mood)
+                    assistant_reply += f"\n\n正在播放基调为'{mood}'的音乐。"
+                else:
+                    assistant_reply += "AI未生成基调，重新生成..."
+            elif enable_music and (turn_count % 3 == 0 or turn_count == 0):  # 每三回合检查是否需要更换音乐
+                should_change = llm_core.should_change_music(assistant_reply, mood)
+                
+                if should_change:
+                    # 调用AI生成基调并播放音乐
+                    available_moods = [name for name in os.listdir(MUSIC_FOLDER) if os.path.isdir(os.path.join(MUSIC_FOLDER, name))]
+                    mood = llm_core.select_music_mood(assistant_reply, available_moods)
 
                     # 动态读取基调文件夹名称
                     while mood not in available_moods:
                         print(f"AI生成的基调'{mood}'无效，重新生成基调。")
-                        mood_response = client.chat.completions.create(
-                            model=os.getenv("MODEL_NAME"),
-                            messages=messages,
-                            temperature=0.7
-                        )
-                        mood = mood_response.choices[0].message.content.strip()
+                        mood = llm_core.select_music_mood(assistant_reply, available_moods)
 
                     if mood:
                         play_music_by_mood(mood)
                         assistant_reply += f"\n\n正在播放基调为'{mood}'的音乐。"
                     else:
                         assistant_reply += "AI未生成基调，重新生成..."
-                except Exception as e:
-                    error_handler.handle_llm_error(e)
-            elif enable_music and (turn_count % 3 == 0 or turn_count == 0):  # 每三回合检查是否需要更换音乐
-                change_music_prompt = (
-                    "根据当前情景和音乐基调，判断是否需要更换音乐。只输出'是'或'否'，不要添加其他内容。\n"
-                    f"情景：{assistant_reply}\n"
-                    f"当前基调：{mood}\n"
-                )
-                messages.append({"role": "user", "content": change_music_prompt})
-                try:
-                    change_music_response = client.chat.completions.create(
-                        model=os.getenv("MODEL_NAME"),
-                        messages=messages,
-                        temperature=0.7
-                    )
-                    change_music_decision = change_music_response.choices[0].message.content.strip()
-
-                    if change_music_decision == '是':
-                        # 调用AI生成基调并播放音乐
-                        available_moods = [name for name in os.listdir(MUSIC_FOLDER) if os.path.isdir(os.path.join(MUSIC_FOLDER, name))]
-                        mood_options = "\n".join([f"- {name}" for name in available_moods])
-                        mood_prompt = (
-                            "请根据刚才的内容和以下情景，从下列基调中选择一个最合适的基调，只能选择并输出下列基调名称之一：\n"
-                            f"情景：{assistant_reply}\n"
-                            f"{mood_options}\n"
-                            "【重要】只能输出上面列表中的一个基调名称，不能输出编号、标点、解释、换行或任何其他内容。直接输出名称本身。"
-                        )
-                        messages.append({"role": "user", "content": mood_prompt})
-                        try:
-                            mood_response = client.chat.completions.create(
-                                model=os.getenv("MODEL_NAME"),
-                                messages=messages,
-                                temperature=0.7
-                            )
-                            mood = mood_response.choices[0].message.content.strip()
-
-                            # 动态读取基调文件夹名称
-                            while mood not in available_moods:
-                                print(f"AI生成的基调'{mood}'无效，重新生成基调。")
-                                mood_response = client.chat.completions.create(
-                                    model=os.getenv("MODEL_NAME"),
-                                    messages=messages,
-                                    temperature=0.7
-                                )
-                                mood = mood_response.choices[0].message.content.strip()
-
-                            if mood:
-                                play_music_by_mood(mood)
-                                assistant_reply += f"\n\n正在播放基调为'{mood}'的音乐。"
-                            else:
-                                assistant_reply += "AI未生成基调，重新生成..."
-                        except Exception as e:
-                            error_handler.handle_llm_error(e)
-                except Exception as e:
-                    error_handler.handle_llm_error(e)
 
             # 输出AI回复
             os.system('cls')  # 清屏
@@ -303,7 +217,4 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
                     args=(messages, world_description, save_name)
                 )
                 summary_thread.start()
-
-        except Exception as e:
-            error_handler.handle_llm_error(e)
 

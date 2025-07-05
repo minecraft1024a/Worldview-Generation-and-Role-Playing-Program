@@ -29,6 +29,14 @@ class ErrorHandler:
             user_message = "身份验证失败（401），API密钥无效或已过期，请检查API Key设置。"
         elif "403" in error_str:
             user_message = "权限被拒绝（403），API Key无权访问该资源或被封禁，请检查权限设置。"
+        elif "429" in error_str:
+            user_message = "请求过于频繁（429），达到API调用频率限制，请稍后重试或减少请求频率。"
+        elif "404" in error_str:
+            user_message = "资源未找到（404），可能是模型名称错误或API路径不正确，请检查配置。"
+        elif "400" in error_str:
+            user_message = "请求参数错误（400），请检查模型名称、消息内容等设置。"
+        elif "503" in error_str:
+            user_message = "服务不可用（503），OpenAI服务器暂时不可用，请稍后重试。"
         elif "500" in error_str:
             user_message = "服务器内部错误（500），OpenAI服务暂时不可用，请稍后重试。"
         elif "502" in error_str:
