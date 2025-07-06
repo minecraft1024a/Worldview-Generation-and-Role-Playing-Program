@@ -28,33 +28,69 @@ class WGARPApp:
             return "欢迎来到WGARP世界！"
     
     def _show_banner(self):
-        """显示程序标题"""
+        """显示程序标题（再次美化）"""
         os.system('cls')
-        banner = Text("""
+        banner_text = Text(
+            """
 ██╗    ██╗ ██████╗  █████╗ ██████╗ ██████╗
 ██║    ██║██╔═══██╗██╔══██╗██╔══██╗██╔══██╗
 ██║ █╗ ██║██║   ██║███████║██████╔╝██████╔╝
 ██║███╗██║██║   ██║██╔══██║██╔═══╝ ██╔═══╝
 ╚███╔███╔╝╚██████╔╝██║  ██║██║     ██║
  ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝
-
-""", style="bold magenta",
-    justify="center")
-        self.console.print(Panel(banner, title="[bold yellow]WGARP - 世界观生成与角色扮演程序[/bold yellow]", border_style="magenta"))
-        self.console.print(f"[bold cyan]💡 每日一言：[/bold cyan][italic yellow]{self.daily_quote}[/italic yellow]")
-    
-    def _show_main_menu(self):
-        """显示主菜单选项"""
-        menu_panel = Panel(
-            "[bold green]1.[/bold green] 📖 读取存档开始游戏\n"
-            "[bold green]2.[/bold green] 🌟 开始新游戏\n"
-            "[bold green]3.[/bold green] 🚪 退出程序",
-            title="[bold blue]📚 主菜单[/bold blue]",
-            border_style="blue"
+            """,
+            style="bold",
+            justify="center"
         )
-        self.console.print("\n" + "="*50)
-        self.console.print(menu_panel)
-        self.console.print("="*50)
+        banner_text.stylize("color(205)", 0, 16)  # 浅黄色
+        banner_text.stylize("color(211)", 16, 32) # 亮黄色
+        self.console.print(Panel(banner_text, title="[bold yellow]WGARP - 世界观生成与角色扮演程序[/bold yellow]", border_style="yellow", padding=(0, 0), subtitle="[italic cyan]开启你的冒险之旅[/italic cyan]", width=80))
+        self.console.print("\n")
+
+    def _show_main_menu(self):
+        """显示主菜单选项（再次美化，左右分栏，高度对齐，调整间距）"""
+        from rich.columns import Columns
+        from rich.text import Text
+
+        menu_content = Text()
+        menu_content.append("1. ", style="bold green")
+        menu_content.append("📖 读取存档开始游戏\n", style="white")
+        menu_content.append("2. ", style="bold green")
+        menu_content.append("🌟 开始新游戏\n", style="white")
+        menu_content.append("3. ", style="bold green")
+        menu_content.append("🚪 退出程序", style="white")
+
+        right_info = (
+            "[bold yellow]WGARP[/bold yellow]\n"
+            "[italic dim]Version 2.1-alpha(test)[/italic dim]\n"
+            "[dim]作者: xxx[/dim]\n"
+            "[dim]QQ群: 123456[/dim]\n"
+            "[dim]开源协议: GPL3[/dim]"
+        )
+
+        # 计算右侧内容行数，+3 预留标题和边框
+        right_lines = right_info.count('\n') + 3
+
+        left_panel = Panel(
+            menu_content,
+            title="[bold blue]🎮 主菜单[/bold blue]",
+            border_style="blue",
+            padding=(0, 1), # 减小内边距
+            width=45, # 适当减小宽度
+            height=right_lines  # 确保高度一致
+        )
+
+        right_panel = Panel(
+            right_info,
+            title="[bold magenta]程序信息[/bold magenta]",
+            border_style="magenta",
+            padding=(0, 0), # 减小内边距
+            width=34 # 适当减小宽度
+        )
+
+        self.console.print(Columns([left_panel, right_panel], equal=False, expand=False, padding=(0,1)))
+        self.console.print(Panel(f"[bold cyan]💡 每日一言：[/bold cyan][italic yellow]{self.daily_quote}[/italic yellow]", border_style="cyan", padding=(0, 0), width=80))
+        self.console.print("\n")
     
     def load_saved_game(self):
         """加载存档游戏"""
