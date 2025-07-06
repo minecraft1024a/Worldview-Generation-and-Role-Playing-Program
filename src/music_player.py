@@ -13,7 +13,8 @@ MUSIC_FOLDER = "game_music"
 class MusicPlayer:
     def __init__(self):
         self.config = toml.load('config.toml')
-        self.enable_music = self.config['ENABLE_MUSIC']
+        # 修正为从 [game] 区块读取 enable_music
+        self.enable_music = self.config.get('game', {}).get('enable_music', False)
 
     def play_music_by_mood(self, mood):
         """

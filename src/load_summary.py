@@ -172,4 +172,5 @@ def load_summary():
             continue
         return result
 
-summary_interval = save_loader.config['SUMMARY_INTERVAL']
+# 正确读取 summary_interval
+summary_interval = save_loader.config.get('game', {}).get('summary_interval', 3)

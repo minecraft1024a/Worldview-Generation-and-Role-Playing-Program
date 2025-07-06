@@ -5,7 +5,7 @@ import threading
 from src import error_handler, summary
 from src.error_handler import error_handler
 from src.character_generator import generate_character
-from src.music_player import play_music_by_mood
+from src.music_player import MusicPlayer  # 修正导入
 import queue
 from rich.console import Console
 from rich.panel import Panel
@@ -22,6 +22,8 @@ MUSIC_FOLDER = "game_music"
 
 # 初始化Rich控制台
 console = Console(force_terminal=True)
+# 初始化音乐播放器实例
+music_player = MusicPlayer()
 
 
 def format_ai_reply(reply):
@@ -357,7 +359,7 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
                 retry_count += 1
 
             if mood and mood in available_moods:
-                music_status = play_music_by_mood(mood)
+                music_status = music_player.play_music_by_mood(mood)  # 修正为实例方法调用
                 # 只在AI回复中显示音乐信息，不单独打印
                 assistant_reply += f"\n\n🎵 {mood}基调音乐已开始播放"
             else:
@@ -379,7 +381,7 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
 
                 if new_mood and new_mood in available_moods:
                     mood = new_mood  # 更新当前基调
-                    music_status = play_music_by_mood(mood)
+                    music_status = music_player.play_music_by_mood(mood)  # 修正为实例方法调用
                     assistant_reply += f"\n\n🎵 音乐已切换至{mood}基调"
                 # 如果无法生成有效基调，静默处理，不添加错误信息
 
