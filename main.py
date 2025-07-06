@@ -5,12 +5,18 @@ from dotenv import load_dotenv
 # load_dotenv()
 
 from src import world_generation, role_play, load_summary
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.prompt import Prompt
+from rich import print as rich_print
 
 class WGARPApp:
     """WGARP - 世界观生成与角色扮演程序主应用"""
     
     def __init__(self):
         self.daily_quote = self._get_daily_quote()
+        self.console = Console(force_terminal=True)
     
     def _get_daily_quote(self):
         """获取每日格言"""
@@ -24,24 +30,31 @@ class WGARPApp:
     def _show_banner(self):
         """显示程序标题"""
         os.system('cls')
-        print("\n██╗    ██╗ ██████╗  █████╗ ██████╗ ██████╗")
-        print("██║    ██║██╔═══██╗██╔══██╗██╔══██╗██╔══██╗")
-        print("██║ █╗ ██║██║   ██║███████║██████╔╝██████╔╝")
-        print("██║███╗██║██║   ██║██╔══██║██╔═══╝ ██╔═══╝")
-        print("╚███╔███╔╝╚██████╔╝██║  ██║██║     ██║")
-        print(" ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝")
-        print("\n=== WGARP - 世界观生成与角色扮演程序 ===")
-        print(f"💡 每日一言：{self.daily_quote}")
+        banner = Text("""
+██╗    ██╗ ██████╗  █████╗ ██████╗ ██████╗
+██║    ██║██╔═══██╗██╔══██╗██╔══██╗██╔══██╗
+██║ █╗ ██║██║   ██║███████║██████╔╝██████╔╝
+██║███╗██║██║   ██║██╔══██║██╔═══╝ ██╔═══╝
+╚███╔███╔╝╚██████╔╝██║  ██║██║     ██║
+ ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝
+
+""", style="bold magenta",
+    justify="center")
+        self.console.print(Panel(banner, title="[bold yellow]WGARP - 世界观生成与角色扮演程序[/bold yellow]", border_style="magenta"))
+        self.console.print(f"[bold cyan]💡 每日一言：[/bold cyan][italic yellow]{self.daily_quote}[/italic yellow]")
     
     def _show_main_menu(self):
         """显示主菜单选项"""
-        print("\n" + "="*50)
-        print("📚 主菜单")
-        print("="*50)
-        print("1. 📖 读取存档开始游戏")
-        print("2. 🌟 开始新游戏")
-        print("3. 🚪 退出程序")
-        print("="*50)
+        menu_panel = Panel(
+            "[bold green]1.[/bold green] 📖 读取存档开始游戏\n"
+            "[bold green]2.[/bold green] 🌟 开始新游戏\n"
+            "[bold green]3.[/bold green] 🚪 退出程序",
+            title="[bold blue]📚 主菜单[/bold blue]",
+            border_style="blue"
+        )
+        self.console.print("\n" + "="*50)
+        self.console.print(menu_panel)
+        self.console.print("="*50)
     
     def load_saved_game(self):
         """加载存档游戏"""
@@ -56,60 +69,64 @@ class WGARPApp:
         return False
     
     def create_new_game(self):
-        """创建新游戏"""
+        """创建新游戏（美化版）"""
         os.system('cls')
-        print("🌍 新游戏创建")
-        print("="*50)
+        self.console.print(Panel("🌍 新游戏创建", title="[bold green]新游戏[/bold green]", border_style="green"))
+        self.console.print("="*50)
         
         # 获取世界观背景
-        background = input("请描述您想要的世界观背景\n(例如：魔法学院、赛博朋克、古代仙侠等，留空使用默认)\n> ").strip()
+        background = Prompt.ask(
+            "[bold cyan]请描述您想要的世界观背景[/bold cyan]\n(例如：魔法学院、赛博朋克、古代仙侠等，留空使用默认)",
+            console=self.console,
+            default=""
+        ).strip()
         if not background:
             background = "地理、历史、文化、魔法体系"
         
         # 生成并确认世界观
         while True:
             os.system('cls')
-            print("🔮 正在生成世界观...")
+            self.console.print(Panel("🔮 正在生成世界观...", border_style="cyan"))
             world_desc = world_generation.generate_world(background)
             
             if not world_desc:
-                print("❌ 世界观生成失败，请重试")
+                self.console.print("[red]❌ 世界观生成失败，请重试[/red]")
                 input("按回车键继续...")
                 continue
             
             # 显示生成的世界观
-            print("\n" + "="*60)
-            print("🌍 生成的世界观")
-            print("="*60)
-            print(world_desc)
-            print("="*60)
+            self.console.print("\n" + "="*60)
+            self.console.print(Panel(world_desc, title="[bold magenta]🌍 生成的世界观[/bold magenta]", border_style="magenta"))
+            self.console.print("="*60)
             
             # 用户确认
             while True:
-                print("\n请选择操作：")
-                print("1. ✅ 接受此世界观，开始游戏")
-                print("2. 🔄 重新生成世界观")
-                print("3. ✏️  修改背景设定")
-                print("4. 🔙 返回主菜单")
-                
-                choice = input("\n> ").strip()
+                self.console.print(Panel(
+                    "[bold green]1.[/bold green] ✅ 接受此世界观，开始游戏\n"
+                    "[bold green]2.[/bold green] 🔄 重新生成世界观\n"
+                    "[bold green]3.[/bold green] ✏️  修改背景设定\n"
+                    "[bold green]4.[/bold green] 🔙 返回主菜单",
+                    title="[bold blue]请选择操作[/bold blue]",
+                    border_style="blue"
+                ))
+                choice = Prompt.ask("[bold yellow]请输入选项[/bold yellow]", console=self.console)
                 
                 if choice == "1":
                     os.system('cls')
-                    print("🎮 正在进入游戏...")
+                    self.console.print("[bold green]🎮 正在进入游戏...[/bold green]")
                     role_play.start_role_play(world_desc, None, None, None)
                     return True
                 elif choice == "2":
                     break  # 重新生成
                 elif choice == "3":
-                    background = input("\n请输入新的背景设定：").strip()
+                    background = Prompt.ask("[bold cyan]请输入新的背景设定[/bold cyan]", console=self.console, default="").strip()
                     if not background:
                         background = "地理、历史、文化、魔法体系"
                     break  # 重新生成
                 elif choice == "4":
                     return False
                 else:
-                    print("❌ 无效选择，请重新输入")
+                    self.console.print("[red]❌ 无效选择，请重新输入[/red]")
     
     def run(self):
         """运行主程序"""
@@ -117,7 +134,7 @@ class WGARPApp:
             self._show_banner()
             self._show_main_menu()
             
-            choice = input("请选择操作 > ").strip()
+            choice = Prompt.ask("[bold yellow]请选择操作[/bold yellow]", console=self.console)
             
             if choice == "1":
                 if self.load_saved_game():
@@ -127,11 +144,10 @@ class WGARPApp:
                     break  # 游戏结束，退出主循环
             elif choice == "3":
                 os.system('cls')
-                print("👋 感谢使用 WGARP！")
-                print("🌟 期待您的下次冒险！")
+                self.console.print("[bold green]👋 感谢使用 WGARP！\n🌟 期待您的下次冒险！[/bold green]")
                 break
             else:
-                print("❌ 无效选择，请输入 1、2 或 3")
+                self.console.print("[red]❌ 无效选择，请输入 1、2 或 3[/red]")
                 input("按回车键继续...")
 
 def main():

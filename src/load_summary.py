@@ -21,6 +21,8 @@ class SaveLoader:
         if not saves:
             print("📁 未找到任何存档文件")
             print("💡 提示：需要先进行游戏并生成存档")
+            input("\n按任意键返回主菜单...")
+            os.system('cls')
             return None, None, None, None, None
         
         while True:
@@ -162,15 +164,11 @@ class SaveLoader:
 # 全局加载器实例
 save_loader = SaveLoader()
 
-def load_summary():
-    """
-    向后兼容的加载函数
-    """
-    while True:
-        result = save_loader.load_summary()
-        if result[0] == "continue":  # 特殊返回值，继续循环
-            continue
-        return result
-
 # 正确读取 summary_interval
 summary_interval = save_loader.config.get('game', {}).get('summary_interval', 3)
+
+def load_summary():
+    """
+    向后兼容的加载函数，供外部直接调用
+    """
+    return save_loader.load_summary()
