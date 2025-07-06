@@ -1,6 +1,5 @@
 from src.llm_core import llm_core
 from src.summary import save_manager  # 使用新的存档管理器
-from dotenv import load_dotenv
 import os
 import threading
 from src import error_handler, summary
@@ -8,12 +7,78 @@ from src.error_handler import error_handler
 from src.character_generator import generate_character
 from src.music_player import play_music_by_mood
 import queue
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.prompt import Prompt
+from rich.markdown import Markdown
+from rich.progress import track
+from rich import print as rich_print
+import re
+import toml
 
 # 定义音乐文件夹路径，可以从环境变量读取或设置默认值
 MUSIC_FOLDER = "game_music"
 
-# 加载环境变量
-load_dotenv()
+# 初始化Rich控制台
+console = Console(force_terminal=True)
+
+
+def format_ai_reply(reply):
+    """
+    格式化AI回复，使用Rich进行美化显示
+    """
+    # 分割回复内容
+    lines = reply.split('\n')
+    formatted_content = []
+    current_section = ""
+    
+    for line in lines:
+        original_line = line
+        line = line.strip()
+        if not line:
+            if current_section:
+                current_section += "\n"
+            continue
+            
+        # 识别不同的部分并应用样式
+        if line.startswith('用户身份：'):
+            if current_section:
+                formatted_content.append(current_section)
+            current_section = f"[bold cyan]👤 {line}[/bold cyan]"
+        elif line.startswith('时间:') or line.startswith('时间：'):
+            current_section += f"\n[yellow]🕐 {line}[/yellow]"
+        elif line.startswith('地点:') or line.startswith('地点：'):
+            current_section += f"\n[green]📍 {line}[/green]"
+        elif line.startswith('情景:') or line.startswith('情景：'):
+            current_section += f"\n[blue]🎬 {line}[/blue]"
+        elif line == '===============':
+            current_section += f"\n[dim bright_black]{'─' * 50}[/dim bright_black]"
+        elif line.startswith('用户状态:') or line.startswith('用户状态：'):
+            current_section += f"\n[magenta]💪 {line}[/magenta]"
+        elif line.startswith('用户物品栏:') or line.startswith('用户物品栏：'):
+            current_section += f"\n[red]🎒 {line}[/red]"
+        elif line.startswith('用户接下来的选择') or line.startswith('选择'):
+            current_section += f"\n[bold yellow]⚡ {line}[/bold yellow]"
+        elif re.match(r'^\d+\.', line):  # 数字选项
+            current_section += f"\n  [bright_blue]🔸 {line}[/bright_blue]"
+        elif line.startswith('🎵'):  # 音乐信息
+            current_section += f"\n[bold green]{line}[/bold green]"
+        elif line.startswith('💾'):  # 保存信息
+            current_section += f"\n[bold blue]{line}[/bold blue]"
+        elif line.startswith('剧情摘要'):
+            current_section += f"\n[dim italic]{line}[/dim italic]"
+        else:
+            # 保持原始的缩进和格式
+            if original_line.startswith(' ') or original_line.startswith('\t'):
+                current_section += f"\n{original_line}"
+            else:
+                current_section += f"\n[white]{line}[/white]"
+    
+    if current_section:
+        formatted_content.append(current_section)
+    
+    return "\n\n".join(formatted_content)
 
 def start_role_play(world_description, summary_text, save_name=None, last_conversation=None,role=None):
     if not summary_text and not role:
@@ -75,8 +140,11 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
         return
         
     messages.append({"role": "assistant", "content": assistant_reply})
-    os.system('cls')  # 清屏
-    print(assistant_reply)
+    console.clear()  # 使用Rich清屏
+    
+    # 美化显示AI回复
+    formatted_reply = format_ai_reply(assistant_reply)
+    console.print(Panel(formatted_reply, title="[bold green]🎭 角色扮演游戏[/bold green]", border_style="green"))
 
     # 首次回复后，去除上次对话内容，重建 system_prompt
     messages = get_init_messages(include_last_conversation=False)
@@ -86,35 +154,80 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
     turn_count = 0
     mood = None  # 初始化音乐基调变量
     current_summary = summary_text or ""  # 当前摘要，用于增量更新
-    summary_interval = int(os.getenv("SUMMARY_INTERVAL", 5))  # 摘要生成的轮数间隔
+    config = toml.load('config.toml')
+    summary_interval = config['game']['summary_interval']  # 摘要生成的轮数间隔
     summary_save_name_queue = queue.Queue()  # 用于线程间传递实际存档名
 
     def generate_smart_summary_in_background(messages, world_description, save_name, previous_summary):
         """
-        智能后台摘要生成 - 使用增量更新和Token优化
+        增强型智能后台摘要生成 - 使用新的智能摘要系统
         """
-        nonlocal summary_generated
+        nonlocal summary_generated, current_summary
         try:
-            # 使用新的智能存档管理器
-            summary_text, new_save_name = save_manager.save_game_state(
+            # 使用增强的智能摘要生成
+            if len(messages) > 10:
+                # 为长对话使用智能摘要系统
+                session_context = f"世界观：{world_description[:200]}，角色：{role[:100] if role else '未知'}"
+                new_summary = llm_core.generate_enhanced_summary(
+                    messages=messages,
+                    previous_summary=previous_summary,
+                    session_context=session_context
+                )
+            else:
+                # 较短对话使用标准智能摘要
+                new_summary = llm_core.generate_smart_summary(
+                    messages=messages,
+                    previous_summary=previous_summary,
+                    enable_optimization=True
+                )
+            
+            if new_summary and new_summary.strip():
+                # 生成优化的存档名
+                context_info = f"第{turn_count}轮，{mood if mood else '未知'}基调"
+                new_save_name = llm_core.generate_compact_save_name(
+                    summary=new_summary,
+                    context_info=context_info
+                )
+                
+                # 使用存档管理器保存状态（已经包含了智能压缩）
+                final_summary, actual_save_name = save_manager.save_game_state(
+                    messages=messages,
+                    world_description=world_description,
+                    save_name=new_save_name,
+                    role=role,
+                    previous_summary=previous_summary
+                )
+                
+                if final_summary:
+                    summary_generated = True
+                    current_summary = final_summary  # 更新当前摘要用于下次增量更新
+                    # 将实际保存的名称放入队列
+                    summary_save_name_queue.put(actual_save_name or new_save_name)
+                    return actual_save_name or new_save_name, final_summary
+            
+            # 生成失败时的回退处理
+            fallback_summary, fallback_name = save_manager.save_game_state(
                 messages, world_description, save_name, role, previous_summary
             )
-            
-            if summary_text:
-                summary_generated = True
-                # 不在这里打印，通过队列传递信息到主线程显示
-            
-            # 将实际save_name放入队列
-            summary_save_name_queue.put(new_save_name or save_name)
-            return new_save_name or save_name, summary_text
+            summary_save_name_queue.put(fallback_name or save_name)
+            current_summary = fallback_summary or previous_summary
+            return fallback_name or save_name, fallback_summary or previous_summary
             
         except Exception as e:
             # 静默处理错误，避免打断用户输入
             import logging
-            logging.warning(f"生成摘要时发生错误: {e}")
-            assistant_reply += f"生成摘要时发生错误: {e}"
-            summary_save_name_queue.put(save_name)
-            return save_name, previous_summary
+            logging.warning(f"生成智能摘要时发生错误: {e}")
+            
+            # 使用最基本的保存方式作为最后回退
+            try:
+                backup_summary, backup_name = save_manager.save_game_state(
+                    messages, world_description, save_name, role, previous_summary
+                )
+                summary_save_name_queue.put(backup_name or save_name)
+                return backup_name or save_name, backup_summary or previous_summary
+            except:
+                summary_save_name_queue.put(save_name)
+                return save_name, previous_summary
 
     while True:
         # 检查摘要线程是否有新存档名和摘要更新
@@ -131,33 +244,85 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
             except:
                 pass
 
-        user_input = input("你的行动（输入'退出'结束游戏，重新开始，重新生成本回合）：")
+        # 显示帮助信息
+        help_text = (
+            "💡 [dim]可用命令: 退出、重新开始、重新生成本回合、查看摘要[/dim]"
+        )
+        console.print(help_text)
+        console.print()  # 空行
+        
+        user_input = Prompt.ask(
+            "[bold yellow]🎮 你的行动[/bold yellow]",
+            default="",
+            show_default=False,
+            console=console
+        )
         while not user_input.strip():
-            user_input = input("你的行动（输入'退出'结束游戏，重新开始，重新生成本回合）：")
+            console.print("[red]⚠️  请输入你的行动！[/red]")
+            user_input = Prompt.ask(
+                "[bold yellow]🎮 你的行动[/bold yellow]",
+                default="",
+                show_default=False,
+                console=console
+            )
         if user_input == '退出':
-            print("游戏已退出，再见！")
+            console.print(Panel(
+                "[bold red]🚪 游戏已退出，再见！[/bold red]",
+                title="[red]退出游戏[/red]",
+                border_style="red"
+            ))
             break
         elif user_input == '重新开始':
-            print("\n正在重新生成场景，请稍候...\n")
+            console.print(Panel(
+                "[bold yellow]🔄 正在重新生成场景，请稍候...[/bold yellow]",
+                title="[yellow]重新开始[/yellow]",
+                border_style="yellow"
+            ))
             messages = get_init_messages()
             assistant_reply = llm_core.role_play_response(messages, temperature=0.7)
             if assistant_reply:
                 messages.append({"role": "assistant", "content": assistant_reply})
-                os.system('cls')  # 清屏
-                print("=== 新的场景已生成 ===")
-                print(assistant_reply)
+                console.clear()
+                formatted_reply = format_ai_reply(assistant_reply)
+                console.print(Panel(
+                    formatted_reply,
+                    title="[bold green]🎭 新的场景已生成[/bold green]",
+                    border_style="green"
+                ))
+            continue
+        elif user_input == '查看摘要':
+            if current_summary:
+                console.print(Panel(
+                    f"[bold cyan]📖 当前故事摘要[/bold cyan]\n\n{current_summary}",
+                    title="[cyan]故事进度[/cyan]",
+                    border_style="cyan"
+                ))
+            else:
+                console.print(Panel(
+                    "[yellow]📝 当前还没有生成摘要，请继续游戏几回合后摘要将自动生成[/yellow]",
+                    title="[yellow]摘要状态[/yellow]",
+                    border_style="yellow"
+                ))
             continue
         elif user_input == '重新生成本回合':
-            print("\n正在重新生成本回合内容，请稍候...\n")
+            console.print(Panel(
+                "[bold cyan]🎲 正在重新生成本回合内容，请稍候...[/bold cyan]",
+                title="[cyan]重新生成[/cyan]",
+                border_style="cyan"
+            ))
             if len(messages) >= 2 and messages[-1]["role"] == "assistant" and messages[-2]["role"] == "user":
                 messages = messages[:-1]  # 移除最后一个assistant回复
                 assistant_reply = llm_core.role_play_response(messages, temperature=0.7)
                 if assistant_reply:
                     messages.append({"role": "assistant", "content": assistant_reply})
-                    print("=== 本回合内容已重新生成 ===")
-                    print(assistant_reply)
+                    formatted_reply = format_ai_reply(assistant_reply)
+                    console.print(Panel(
+                        formatted_reply,
+                        title="[bold cyan]🎲 本回合内容已重新生成[/bold cyan]",
+                        border_style="cyan"
+                    ))
             else:
-                print("无法重新生成本回合（历史记录不足）")
+                console.print("[red]❌ 无法重新生成本回合（历史记录不足）[/red]")
             continue
 
         # 用户输入内嵌到提示中，并追加到对话历史
@@ -170,13 +335,16 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
         # 检查摘要生成队列，若有新save_name则添加到回复中
         if not summary_save_name_queue.empty():
             latest_save_name = summary_save_name_queue.get()
-            assistant_reply += f"\n\n💾 进度已自动保存: {latest_save_name}"
+            # 使用更详细的保存完成信息
+            assistant_reply += f"\n\n✅ 智能存档已完成: {latest_save_name}"
+            assistant_reply += f"\n🔍 已优化对话内容并生成高质量摘要"
             summary_generated = False  # 重置标志
 
         messages.append({"role": "assistant", "content": assistant_reply})
 
         # 检查音乐播放开关
-        enable_music = os.getenv("ENABLE_MUSIC", "true").lower() == "true"
+        config = toml.load('config.toml')
+        enable_music = config['game']['enable_music']
 
         if enable_music and turn_count == 0:  # 第零回合自动播放音乐
             available_moods = [name for name in os.listdir(MUSIC_FOLDER) if os.path.isdir(os.path.join(MUSIC_FOLDER, name))]
@@ -216,17 +384,55 @@ def start_role_play(world_description, summary_text, save_name=None, last_conver
                 # 如果无法生成有效基调，静默处理，不添加错误信息
 
         # 输出AI回复
-        os.system('cls')  # 清屏
-        print(assistant_reply)
+        console.clear()  # 使用Rich清屏
+        formatted_reply = format_ai_reply(assistant_reply)
+        console.print(Panel(
+            formatted_reply,
+            title="[bold green]🎭 角色扮演游戏[/bold green]",
+            border_style="green"
+        ))
 
         # 每x轮生成一次智能摘要，并在后台线程中执行
         turn_count += 1
         if turn_count % summary_interval == 0:
-            assistant_reply += f"\n\n💾 进度自动保存中..."
-            # 静默启动后台摘要生成，不打印提示
+            # 显示智能摘要生成状态
+            progress_msg = f"\n\n💡 第{turn_count}轮：正在生成智能摘要和优化存档..."
+            assistant_reply += progress_msg
+            
+            # 重新显示当前回复（包含进度信息）
+            console.clear()
+            formatted_reply = format_ai_reply(assistant_reply)
+            console.print(Panel(
+                formatted_reply,
+                title="[bold green]🎭 角色扮演游戏[/bold green]",
+                border_style="green"
+            ))
+            
+            # 启动增强型后台摘要生成
             summary_thread = threading.Thread(
                 target=generate_smart_summary_in_background,
-                args=(messages, world_description, save_name, current_summary)
+                args=(messages, world_description, save_name, current_summary),
+                daemon=True  # 设为守护线程，主程序退出时自动结束
             )
             summary_thread.start()
+        
+        # 智能摘要优化：每2轮进行一次轻量级状态更新
+        elif turn_count % 2 == 0 and turn_count > 0:
+            # 使用轻量级摘要更新，不保存文件
+            try:
+                recent_progress = llm_core.generate_smart_summary(
+                    messages=messages[-4:],  # 只分析最近4条消息
+                    previous_summary="",
+                    max_tokens=200,
+                    enable_optimization=True
+                )
+                if recent_progress and len(recent_progress.strip()) > 10:
+                    # 更新内存中的当前摘要
+                    if current_summary:
+                        # 合并最新进展到当前摘要
+                        current_summary = f"{current_summary[:400]}...最新：{recent_progress[:100]}"
+                    else:
+                        current_summary = recent_progress
+            except:
+                pass  # 轻量级更新失败时忽略
 

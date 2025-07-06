@@ -1,5 +1,6 @@
 import json
 import os
+import toml
 from src.summary import save_manager
 from src.error_handler import error_handler
 
@@ -8,6 +9,7 @@ class SaveLoader:
     
     def __init__(self):
         self.save_manager = save_manager
+        self.config = toml.load('config.toml')
     
     def load_summary(self):
         """
@@ -169,3 +171,5 @@ def load_summary():
         if result[0] == "continue":  # 特殊返回值，继续循环
             continue
         return result
+
+summary_interval = save_loader.config['SUMMARY_INTERVAL']

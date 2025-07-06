@@ -2,9 +2,9 @@ import os
 import json
 import random
 from dotenv import load_dotenv
-from src import world_generation, role_play, load_summary
+# load_dotenv()
 
-load_dotenv()
+from src import world_generation, role_play, load_summary
 
 class WGARPApp:
     """WGARP - 世界观生成与角色扮演程序主应用"""

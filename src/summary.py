@@ -101,6 +101,8 @@ class SaveManager:
         save_name = llm_core.generate_save_name(summary[:200])  # 只发送前200字符
         if save_name:
             save_name = save_name.strip().replace(" ", "")
+            # 移除换行符和回车符
+            save_name = save_name.replace("\\n", "").replace("\\r", "")
             for ch in r'\\/:*?\"<>|':
                 save_name = save_name.replace(ch, "")
             timestamp = int(time.time())

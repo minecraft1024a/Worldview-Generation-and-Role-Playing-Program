@@ -1,0 +1,69 @@
+# ==========================================
+# 游戏设置
+# ==========================================
+[game]
+# 摘要生成的轮数间隔
+summary_interval = 3
+# 控制音乐播放开关
+enable_music = false
+
+# ==========================================
+# 模型配置
+# ==========================================
+[models]
+
+# 世界观生成模型
+[models.world_generation]
+provider = "gemini"           # 提供商：gemini, openai, claude, deepseek
+model = "gemini-2.5-flash"    # 模型名称
+temperature = 0.7             # 创造性 (0.0-1.0)
+max_tokens = 2000            # 最大输出token数
+timeout = 30                 # 请求超时时间(秒)
+
+# 角色扮演游戏模型
+[models.role_play]
+provider = "gemini"
+model = "gemini-2.5-flash"
+temperature = 0.7
+max_tokens = 1500
+timeout = 30
+
+# 音乐情景识别模型
+[models.music_mood]
+provider = "gemini"
+model = "gemini-2.5-flash"
+temperature = 0.3             # 降低随机性，提高一致性
+max_tokens = 50              # 只需要短回复
+timeout = 15
+
+# 智能摘要生成模型（优化版）
+[models.smart_summary]
+provider = "gemini"
+model = "gemini-2.5-flash"
+temperature = 0.4             # 更低的随机性，提高一致性
+max_tokens = 800
+timeout = 25
+
+# 存档摘要生成模型
+[models.save_summary]
+provider = "gemini"
+model = "gemini-2.5-flash"
+temperature = 0.5             # 平衡创造性和准确性
+max_tokens = 500
+timeout = 20
+
+# 存档名生成模型
+[models.save_name]
+provider = "gemini"
+model = "gemini-2.5-flash"
+temperature = 0.6
+max_tokens = 20              # 存档名很短
+timeout = 10
+
+# 角色生成模型
+[models.character_generation]
+provider = "gemini"
+model = "gemini-2.5-flash"
+temperature = 0.8             # 更高的创造性
+max_tokens = 1000
+timeout = 25
